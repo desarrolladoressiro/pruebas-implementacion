@@ -60,7 +60,14 @@ async function main() {
       await executeRunByDefinition(run);
       console.log(`[worker] finalizada run ${run.id}`);
     } catch (error) {
-      console.error('[worker] error', error);
+      if (error instanceof Error) {
+        console.error(`[worker] error: ${error.message}`);
+        if ('issues' in error) {
+          console.error(JSON.stringify((error as any).issues, null, 2));
+        }
+      } else {
+        console.error('[worker] error desconocido', error);
+      }
       await sleep(POLL_INTERVAL_MS);
     }
   }

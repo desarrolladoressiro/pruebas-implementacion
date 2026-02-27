@@ -1,0 +1,15 @@
+[Unit]
+Description=SIRO Automation Worker
+After=network.target
+
+[Service]
+Type=simple
+User=siro
+WorkingDirectory=/opt/siro-automation
+EnvironmentFile=/opt/siro-automation/.env
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

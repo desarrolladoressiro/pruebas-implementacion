@@ -1,0 +1,121 @@
+'use client';
+
+import { useState } from 'react';
+
+interface ProfileData {
+  email: string | null;
+  dni: string | null;
+  cbu: string | null;
+  alias: string | null;
+  preferred_bank: string | null;
+  base_cliente: string | null;
+  notes: string | null;
+}
+
+export function ProfileForm({ profile }: { profile: ProfileData }) {
+  const [form, setForm] = useState<ProfileData>(profile);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function patchField<K extends keyof ProfileData>(key: K, value: ProfileData[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(form)
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'No se pudo actualizar perfil.');
+      }
+
+      setForm(payload.profile);
+      setMessage('Perfil actualizado.');
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Error desconocido.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="card grid" onSubmit={handleSubmit}>
+      <h2 style={{ margin: 0 }}>Perfil Operativo</h2>
+
+      <label>
+        Email
+        <input className="input" value={form.email ?? ''} disabled />
+      </label>
+
+      <div className="grid grid-2">
+        <label>
+          Base cliente (8 o 9 digitos)
+          <input
+            className="input"
+            value={form.base_cliente ?? ''}
+            onChange={(event) => patchField('base_cliente', event.target.value)}
+          />
+        </label>
+
+        <label>
+          Banco preferido (codigo)
+          <input
+            className="input"
+            value={form.preferred_bank ?? ''}
+            onChange={(event) => patchField('preferred_bank', event.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-2">
+        <label>
+          DNI
+          <input className="input" value={form.dni ?? ''} onChange={(event) => patchField('dni', event.target.value)} />
+        </label>
+
+        <label>
+          CBU
+          <input className="input" value={form.cbu ?? ''} onChange={(event) => patchField('cbu', event.target.value)} />
+        </label>
+      </div>
+
+      <label>
+        Alias
+        <input className="input" value={form.alias ?? ''} onChange={(event) => patchField('alias', event.target.value)} />
+      </label>
+
+      <label>
+        Notas operativas
+        <textarea
+          className="textarea"
+          rows={4}
+          value={form.notes ?? ''}
+          onChange={(event) => patchField('notes', event.target.value)}
+        />
+      </label>
+
+      {message ? <div className="badge badge-ok">{message}</div> : null}
+      {error ? <div className="badge badge-err">{error}</div> : null}
+
+      <div>
+        <button className="btn" type="submit" disabled={saving}>
+          {saving ? 'Guardando...' : 'Guardar perfil'}
+        </button>
+      </div>
+    </form>
+  );
+}

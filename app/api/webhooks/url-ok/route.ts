@@ -9,7 +9,7 @@ function paramsToObject(params: URLSearchParams) {
   }, {});
 }
 
-async function processWebhook(request: Request, body?: Record<string, unknown>) {
+async function processWebhook(request: Request, body?: any) {
   const url = new URL(request.url);
   const queryParams = paramsToObject(url.searchParams);
   const runId = String(queryParams.run_id ?? body?.run_id ?? '');
@@ -56,6 +56,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = (await request.json().catch(() => ({}))) as any;
   return processWebhook(request, body);
 }

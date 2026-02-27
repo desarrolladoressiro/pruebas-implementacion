@@ -13,7 +13,10 @@ pnpm-debug.log*
 .DS_Store
 coverage
 
+
+
 Documentacion
 supabase/migrations
 docs
-agents
+.agents
+.env.example

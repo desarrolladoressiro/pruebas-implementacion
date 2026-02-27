@@ -25,7 +25,7 @@ function asObject(input: unknown): JsonObject {
   return input as JsonObject;
 }
 
-function getProfileBaseCliente(profile: Record<string, unknown> | null | undefined) {
+function getProfileBaseCliente(profile: Record<string, any> | null | undefined) {
   const raw = String(profile?.base_cliente ?? '70000000');
   return raw;
 }

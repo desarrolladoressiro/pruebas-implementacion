@@ -35,7 +35,7 @@ export async function getOrCreateProfile(userId: string, email: string | null) {
   return data;
 }
 
-export async function updateProfile(userId: string, patch: Record<string, unknown>) {
+export async function updateProfile(userId: string, patch: Record<string, any>) {
   const supabase = createSupabaseServiceRoleClient();
 
   const { data, error } = await supabase

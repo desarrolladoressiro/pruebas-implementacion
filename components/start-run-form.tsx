@@ -9,7 +9,7 @@ interface StartRunFormProps {
     name: string;
     domain: string;
     description: string;
-    default_input: Record<string, unknown> | null;
+    default_input: Record<string, any> | null;
   }>;
 }
 

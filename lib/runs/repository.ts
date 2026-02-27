@@ -97,7 +97,7 @@ export async function appendRunEvent({
 export async function updateRunStatus(runId: string, status: RunStatus, outputJson?: JsonObject) {
   const supabase = createSupabaseServiceRoleClient();
 
-  const patch: Record<string, unknown> = {
+  const patch: Record<string, any> = {
     status
   };
 

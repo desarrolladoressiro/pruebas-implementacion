@@ -5,6 +5,7 @@ const serverSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   APP_BASE_URL: z.string().url(),
+  GCP_VM_URL: z.string().url().optional(),
   SIRO_HOMO_USER: z.string().min(1),
   SIRO_HOMO_PASSWORD: z.string().min(1),
   SIRO_PROD_USER: z.string().min(1),

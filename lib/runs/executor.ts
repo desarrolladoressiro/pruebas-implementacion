@@ -76,11 +76,47 @@ function getProfileBaseCliente(profile: Record<string, any> | null | undefined) 
   return String(profile?.base_cliente ?? '70000000');
 }
 
-function buildPagoCallbackUrls(runId: string) {
+const VM_NOTIFICATION_CHANNELS = new Set([
+  'qr',
+  'debin',
+  'link',
+  'link_online',
+  'link_pagos',
+  'link_pagos_online',
+  'lk',
+  'pmc',
+  'pmc_online',
+  'pago_mis_cuentas',
+  'pago_mis_cuentas_online'
+]);
+
+function normalizeCanal(input: unknown) {
+  return String(input ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function shouldUseVmForNotifications(canal: unknown) {
+  const normalized = normalizeCanal(canal);
+  return normalized.length > 0 && VM_NOTIFICATION_CHANNELS.has(normalized);
+}
+
+function buildPagoCallbackUrls({
+  runId,
+  canal,
+  forceVm
+}: {
+  runId: string;
+  canal?: unknown;
+  forceVm?: boolean;
+}) {
   const env = getEnv();
-  const ok = `${env.APP_BASE_URL}/api/webhooks/url-ok?run_id=${runId}`;
+  const useVmBase = Boolean(env.GCP_VM_URL) && (forceVm || shouldUseVmForNotifications(canal));
+  const baseUrl = useVmBase ? String(env.GCP_VM_URL) : env.APP_BASE_URL;
+  const ok = `${baseUrl}/api/webhooks/url-ok?run_id=${runId}`;
   const error = `${ok}&kind=error`;
-  return { ok, error };
+  return { ok, error, baseUrl, useVmBase };
 }
 
 function buildDetalleAndImporte(input: Record<string, any>, fallbackAmount: number) {
@@ -165,7 +201,10 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
   const profile = await getProfileByUserId(run.user_id);
   const baseCliente = getProfileBaseCliente(profile);
   const siro = new SiroClient(run.environment);
-  const callbackUrls = buildPagoCallbackUrls(run.id);
+  const callbackUrls = buildPagoCallbackUrls({
+    runId: run.id,
+    canal: input.canal
+  });
 
   const fallbackAmount = toNumberValue(input.Importe, 100);
   const { detalle, importe } = buildDetalleAndImporte(input, fallbackAmount);
@@ -211,7 +250,9 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
     message: 'Intencion creada. Run en espera de URL_OK.',
     payload: {
       idReferenciaOperacion: comprobante.idReferenciaOperacion,
-      hash: String((response as any)?.Hash ?? '')
+      hash: String((response as any)?.Hash ?? ''),
+      callback_base_url: callbackUrls.baseUrl,
+      callback_via_vm: callbackUrls.useVmBase
     }
   });
 
@@ -257,7 +298,10 @@ async function executeSiroPagosStringQR(run: RunRow) {
   const profile = await getProfileByUserId(run.user_id);
   const baseCliente = getProfileBaseCliente(profile);
   const siro = new SiroClient(run.environment);
-  const callbackUrls = buildPagoCallbackUrls(run.id);
+  const callbackUrls = buildPagoCallbackUrls({
+    runId: run.id,
+    forceVm: true
+  });
 
   const fallbackAmount = toNumberValue(input.Importe, 100);
   const { detalle, importe } = buildDetalleAndImporte(input, fallbackAmount);
@@ -350,7 +394,10 @@ async function executeSiroPagosQREstatico(run: RunRow) {
   const profile = await getProfileByUserId(run.user_id);
   const baseCliente = getProfileBaseCliente(profile);
   const siro = new SiroClient(run.environment);
-  const callbackUrls = buildPagoCallbackUrls(run.id);
+  const callbackUrls = buildPagoCallbackUrls({
+    runId: run.id,
+    forceVm: true
+  });
 
   const terminal = trimToMaxLength(toStringValue(input.nro_terminal, String(Date.now()).slice(-10)), 10);
   const nroEmpresa = trimToMaxLength(toStringValue(input.nro_empresa, env.SIRO_CONVENIO_ID), 10);
@@ -422,7 +469,10 @@ async function executeSiroPagosComprobante(run: RunRow) {
   const profile = await getProfileByUserId(run.user_id);
   const baseCliente = getProfileBaseCliente(profile);
   const siro = new SiroClient(run.environment);
-  const callbackUrls = buildPagoCallbackUrls(run.id);
+  const callbackUrls = buildPagoCallbackUrls({
+    runId: run.id,
+    canal: input.canal
+  });
 
   const comprobante = resolveComprobanteContext({
     input,

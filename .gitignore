@@ -20,3 +20,5 @@ supabase/migrations
 docs
 .agents
 .env.example
+
+*.tsbuildinfo

@@ -8,7 +8,16 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Genera una intencion de pago y deja el flujo esperando callback URL_OK.',
     executor_code: 'siro_pagos_crear_intencion',
     enabled: true,
-    default_input: {}
+    default_input: {
+      Concepto: 'PRUEBA AUTOMATIZADA API PAGO',
+      Importe: 100,
+      Detalle: [
+        {
+          Descripcion: 'SERVICIO',
+          Importe: 100
+        }
+      ]
+    }
   },
   {
     key: 'siro_pagos_consulta_intencion',
@@ -26,7 +35,10 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Crea intencion QR dinamico y devuelve string para generar imagen.',
     executor_code: 'siro_pagos_string_qr',
     enabled: true,
-    default_input: {}
+    default_input: {
+      Concepto: 'PRUEBA STRING QR',
+      Importe: 100
+    }
   },
   {
     key: 'siro_pagos_string_qr_offline',
@@ -35,7 +47,11 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Genera string QR offline con vencimientos e importes.',
     executor_code: 'siro_pagos_string_qr_offline',
     enabled: true,
-    default_input: {}
+    default_input: {
+      importe_1: 100,
+      importe_2: 120,
+      importe_3: 140
+    }
   },
   {
     key: 'siro_pagos_qr_estatico',
@@ -44,7 +60,9 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Genera terminal QR estatico y crea peticion de cobro.',
     executor_code: 'siro_pagos_qr_estatico',
     enabled: true,
-    default_input: {}
+    default_input: {
+      Importe: 100
+    }
   },
   {
     key: 'siro_pagos_comprobante',
@@ -53,7 +71,9 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Genera intencion de pago sobre comprobante existente.',
     executor_code: 'siro_pagos_comprobante',
     enabled: true,
-    default_input: {}
+    default_input: {
+      UsarVencimientosComprobante: false
+    }
   },
   {
     key: 'siro_api_pagos_upload',
@@ -62,7 +82,14 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Sube base de deuda y obtiene nro_transaccion.',
     executor_code: 'siro_api_pagos_upload',
     enabled: true,
-    default_input: {}
+    default_input: {
+      formato: 'basico',
+      importe: 100,
+      confirmar_automaticamente: true,
+      obtener_informacion_base: true,
+      consultas_estado_max_intentos: 3,
+      consultas_estado_intervalo_ms: 4000
+    }
   },
   {
     key: 'siro_api_pagos_estado_transaccion',
@@ -71,7 +98,10 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Consulta estado de procesamiento de base de deuda.',
     executor_code: 'siro_api_pagos_estado_transaccion',
     enabled: true,
-    default_input: {}
+    default_input: {
+      nro_transaccion: 0,
+      obtener_informacion_base: true
+    }
   },
   {
     key: 'siro_api_pagos_consulta',
@@ -80,7 +110,9 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Consulta bases en rango de fechas.',
     executor_code: 'siro_api_pagos_consulta',
     enabled: true,
-    default_input: {}
+    default_input: {
+      obtener_informacion_base: true
+    }
   },
   {
     key: 'siro_api_listados_proceso',
@@ -107,6 +139,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     description: 'Alta, consulta, vigentes/bajas, modificacion y desactivacion.',
     executor_code: 'siro_api_adhesiones_ciclo',
     enabled: true,
-    default_input: {}
+    default_input: {
+      tipoAdhesion: 'VS'
+    }
   }
 ];

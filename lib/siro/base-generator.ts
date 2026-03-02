@@ -35,16 +35,22 @@ function amountToCentsString(amount: number, size: number) {
   return String(cents).padStart(size, '0').slice(-size);
 }
 
+function randomFiveDigits() {
+  return String(Math.floor(Math.random() * 100000)).padStart(5, '0');
+}
+
 export function generateBaseBasicoLinkPagos({
   baseCliente,
   amount,
   conceptoDigit,
-  mensaje
+  mensaje,
+  randomSuffix5
 }: {
   baseCliente: string;
   amount: number;
   conceptoDigit?: number;
   mensaje?: string;
+  randomSuffix5?: string;
 }) {
   const cpe = buildNroClienteEmpresa(baseCliente);
   const now = new Date();
@@ -53,7 +59,7 @@ export function generateBaseBasicoLinkPagos({
 
   const header = `${padRight('HRFACTURACION', 13)}${padRight('', 3)}${yymmdd(now)}00001${padRight('', 104)}`;
 
-  const deudaId = `${String(conceptoDigit ?? 0).slice(0, 1)}${mmaa}`;
+  const deudaId = padLeftNum(randomSuffix5 ?? randomFiveDigits(), 5);
   const detalle =
     `${padLeftNum(deudaId, 5)}` +
     `001` +
@@ -81,22 +87,23 @@ export function generateBaseFullPagoMisCuentas({
   baseCliente,
   amount,
   conceptoDigit,
-  mensaje
+  mensaje,
+  randomSuffix5
 }: {
   baseCliente: string;
   amount: number;
   conceptoDigit?: number;
   mensaje?: string;
+  randomSuffix5?: string;
 }) {
   const cpe = buildNroClienteEmpresa(baseCliente);
   const now = new Date();
   const vto1 = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const vto2 = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const vto3 = new Date(now.getTime() + 72 * 60 * 60 * 1000);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const aa = String(now.getFullYear() % 100).padStart(2, '0');
-
-  const idFactura = `${padRight('FACTAUTO', 15, '0')}${String(conceptoDigit ?? 0).slice(0, 1)}${mm}${aa}`;
+  const first15 = padRight('FACTAUTO', 15, '0');
+  const last5 = padLeftNum(randomSuffix5 ?? randomFiveDigits(), 5);
+  const idFactura = `${first15}${last5}`;
 
   const header =
     `0` +

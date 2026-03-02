@@ -5,6 +5,7 @@ import { syncTestDefinitions } from '@/lib/runs/sync-definitions';
 import { listRunsForUser } from '@/lib/runs/queries';
 import { StartRunForm } from '@/components/start-run-form';
 import { RunStatusPill } from '@/components/runs/run-status-pill';
+import { formatDateTimeAr } from '@/lib/datetime';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -50,7 +51,7 @@ export default async function DashboardPage() {
             <tbody>
               {runs.map((run) => (
                 <tr key={run.id}>
-                  <td>{String(run.created_at)}</td>
+                  <td>{formatDateTimeAr(run.created_at)}</td>
                   <td>{String(run.test_definition_key)}</td>
                   <td>{String(run.environment)}</td>
                   <td>

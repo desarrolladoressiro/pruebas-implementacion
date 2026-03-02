@@ -3,18 +3,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RunStatusPill } from '@/components/runs/run-status-pill';
+import { formatDateTimeAr } from '@/lib/datetime';
 
 interface RunLivePanelProps {
   runId: string;
   initialRun: Record<string, any>;
   initialSteps: Array<Record<string, any>>;
   initialEvents: Array<Record<string, any>>;
+  initialArtifacts: Array<Record<string, any>>;
 }
 
-export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }: RunLivePanelProps) {
+function formatJson(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+export function RunLivePanel({
+  runId,
+  initialRun,
+  initialSteps,
+  initialEvents,
+  initialArtifacts
+}: RunLivePanelProps) {
   const [run, setRun] = useState(initialRun);
   const [steps, setSteps] = useState(initialSteps);
   const [events, setEvents] = useState(initialEvents);
+  const [artifacts, setArtifacts] = useState(initialArtifacts);
 
   const sortedSteps = useMemo(
     () => [...steps].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)),
@@ -25,6 +46,56 @@ export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }:
     () => [...events].sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
     [events]
   );
+
+  const sortedArtifacts = useMemo(
+    () => [...artifacts].sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
+    [artifacts]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function poll() {
+      try {
+        const response = await fetch(`/api/runs/${runId}`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          run?: Record<string, any>;
+          steps?: Array<Record<string, any>>;
+          events?: Array<Record<string, any>>;
+          artifacts?: Array<Record<string, any>>;
+        };
+
+        if (!active) {
+          return;
+        }
+
+        if (payload.run) setRun(payload.run);
+        if (payload.steps) setSteps(payload.steps);
+        if (payload.events) setEvents(payload.events);
+        if (payload.artifacts) setArtifacts(payload.artifacts);
+      } catch {
+        // noop: fallback realtime puede seguir actualizando si polling falla temporalmente
+      }
+    }
+
+    void poll();
+    const interval = window.setInterval(() => {
+      void poll();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [runId]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -87,6 +158,23 @@ export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }:
           setEvents((current) => [...current, newRow]);
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'run_artifacts',
+          filter: `run_id=eq.${runId}`
+        },
+        (payload) => {
+          const newRow = payload.new as Record<string, any>;
+          if (!newRow?.id) {
+            return;
+          }
+
+          setArtifacts((current) => [...current, newRow]);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -105,7 +193,19 @@ export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }:
         </div>
         <div className="muted">Definicion: {String(run.test_definition_key ?? '-')}</div>
         <div className="muted">Entorno: {String(run.environment ?? '-')}</div>
-        <div className="muted">Creada: {String(run.created_at ?? '-')}</div>
+        <div className="muted">Creada: {formatDateTimeAr(run.created_at)}</div>
+        {run.input_json ? (
+          <details>
+            <summary>Input JSON de run</summary>
+            <pre className="json-block">{formatJson(run.input_json)}</pre>
+          </details>
+        ) : null}
+        {run.output_json ? (
+          <details>
+            <summary>Output JSON de run</summary>
+            <pre className="json-block">{formatJson(run.output_json)}</pre>
+          </details>
+        ) : null}
       </section>
 
       <section className="card grid">
@@ -133,6 +233,34 @@ export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }:
       </section>
 
       <section className="card" style={{ gridColumn: '1 / -1' }}>
+        <h2 style={{ marginTop: 0 }}>Request/Response por paso</h2>
+        <div className="grid">
+          {sortedSteps.map((step) => (
+            <details key={`${step.id}-payload`}>
+              <summary>
+                #{step.sequence} {String(step.step_code)} - {String(step.status)}
+              </summary>
+              {step.request_json ? (
+                <div>
+                  <div className="muted">Request</div>
+                  <pre className="json-block">{formatJson(step.request_json)}</pre>
+                </div>
+              ) : null}
+              {step.response_json ? (
+                <div>
+                  <div className="muted">Response</div>
+                  <pre className="json-block">{formatJson(step.response_json)}</pre>
+                </div>
+              ) : null}
+              {step.error_message ? (
+                <div className="badge badge-err">{String(step.error_message)}</div>
+              ) : null}
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="card" style={{ gridColumn: '1 / -1' }}>
         <h2 style={{ marginTop: 0 }}>Eventos</h2>
         <table className="table">
           <thead>
@@ -145,13 +273,47 @@ export function RunLivePanel({ runId, initialRun, initialSteps, initialEvents }:
           <tbody>
             {sortedEvents.map((event) => (
               <tr key={event.id}>
-                <td>{String(event.created_at)}</td>
+                <td>{formatDateTimeAr(event.created_at)}</td>
                 <td>{String(event.level)}</td>
-                <td>{String(event.message)}</td>
+                <td>
+                  <div>{String(event.message)}</div>
+                  {event.payload_json && Object.keys(event.payload_json).length > 0 ? (
+                    <details>
+                      <summary>Payload</summary>
+                      <pre className="json-block">{formatJson(event.payload_json)}</pre>
+                    </details>
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="card" style={{ gridColumn: '1 / -1' }}>
+        <h2 style={{ marginTop: 0 }}>Artifacts</h2>
+        {sortedArtifacts.length === 0 ? (
+          <div className="muted">Sin artifacts en esta run.</div>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Path</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedArtifacts.map((artifact) => (
+                <tr key={artifact.id}>
+                  <td>{formatDateTimeAr(artifact.created_at)}</td>
+                  <td>{String(artifact.artifact_type)}</td>
+                  <td>{String(artifact.storage_path)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );

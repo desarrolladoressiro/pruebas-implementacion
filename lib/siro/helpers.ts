@@ -4,6 +4,26 @@ function padLeft(input: string | number, length: number) {
   return String(input).padStart(length, '0');
 }
 
+function toIsoWithFixedOffset(date: Date, offsetMinutes: number) {
+  const offsetMs = offsetMinutes * 60 * 1000;
+  const adjusted = new Date(date.getTime() + offsetMs);
+
+  const year = adjusted.getUTCFullYear();
+  const month = padLeft(adjusted.getUTCMonth() + 1, 2);
+  const day = padLeft(adjusted.getUTCDate(), 2);
+  const hours = padLeft(adjusted.getUTCHours(), 2);
+  const minutes = padLeft(adjusted.getUTCMinutes(), 2);
+  const seconds = padLeft(adjusted.getUTCSeconds(), 2);
+  const millis = padLeft(adjusted.getUTCMilliseconds(), 3);
+
+  const absOffset = Math.abs(offsetMinutes);
+  const offsetHours = padLeft(Math.floor(absOffset / 60), 2);
+  const offsetMins = padLeft(absOffset % 60, 2);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${millis}${sign}${offsetHours}:${offsetMins}`;
+}
+
 export function normalizeBaseCliente(baseCliente: string) {
   const digits = baseCliente.replace(/\D/g, '');
 
@@ -52,9 +72,11 @@ export function buildIdReferenciaOperacion(prefix: string) {
 }
 
 export function isoNowMinus(days: number) {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return toIsoWithFixedOffset(date, -180);
 }
 
 export function isoNowPlus(days: number) {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return toIsoWithFixedOffset(date, -180);
 }

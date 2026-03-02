@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface StartRunFormProps {
@@ -15,9 +15,12 @@ interface StartRunFormProps {
 
 export function StartRunForm({ definitions }: StartRunFormProps) {
   const router = useRouter();
-  const [definitionKey, setDefinitionKey] = useState(definitions[0]?.key ?? '');
-  const [environment, setEnvironment] = useState<'homologacion' | 'produccion'>('homologacion');
-  const [jsonInput, setJsonInput] = useState('{}');
+  const initialDefinition = definitions[0];
+  const [definitionKey, setDefinitionKey] = useState(initialDefinition?.key ?? '');
+  const [environment, setEnvironment] = useState<'homologacion' | 'produccion'>('produccion');
+  const [jsonInput, setJsonInput] = useState(
+    JSON.stringify(initialDefinition?.default_input ?? {}, null, 2)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +28,11 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
     () => definitions.find((item) => item.key === definitionKey),
     [definitionKey, definitions]
   );
+
+  useEffect(() => {
+    const defaults = selectedDefinition?.default_input ?? {};
+    setJsonInput(JSON.stringify(defaults, null, 2));
+  }, [selectedDefinition?.key]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -95,7 +103,7 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
       </div>
 
       <label>
-        Input JSON (opcional)
+        Input JSON (se precarga con defaults)
         <textarea
           className="textarea"
           rows={10}

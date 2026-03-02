@@ -125,13 +125,15 @@ export async function createRunStep({
   stepCode,
   stepName,
   sequence,
-  status = 'running'
+  status = 'running',
+  requestJson
 }: {
   runId: string;
   stepCode: string;
   stepName: string;
   sequence: number;
   status?: string;
+  requestJson?: JsonObject;
 }) {
   const supabase = createSupabaseServiceRoleClient();
 
@@ -143,6 +145,7 @@ export async function createRunStep({
       step_name: stepName,
       sequence,
       status,
+      request_json: requestJson ?? null,
       started_at: new Date().toISOString()
     })
     .select('id,run_id,step_code,step_name,status,sequence,started_at')

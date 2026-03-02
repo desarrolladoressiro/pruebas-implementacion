@@ -30,6 +30,7 @@ export default async function RunDetailPage({
         initialRun={detail.run}
         initialSteps={detail.steps}
         initialEvents={detail.events}
+        initialArtifacts={detail.artifacts}
       />
     </section>
   );

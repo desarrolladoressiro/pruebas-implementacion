@@ -10,7 +10,29 @@ const serverSchema = z.object({
   SIRO_PROD_USER: z.string().min(1),
   SIRO_PROD_PASSWORD: z.string().min(1),
   SIRO_CONVENIO_ID: z.string().min(1),
-  SIRO_ADMIN_CUIT: z.string().min(1)
+  SIRO_ADMIN_CUIT: z.string().min(1),
+  PLAYWRIGHT_HEADLESS: z.enum(['true', 'false']).optional().default('true'),
+  PLAYWRIGHT_SLOW_MO_MS: z.coerce.number().optional().default(0),
+  TEST_PAYER_EMAIL: z.string().email().optional().default('qa@example.com'),
+  TEST_PAYER_DNI: z.string().optional().default('30111222'),
+  TEST_PAYER_FIRST_NAME: z.string().optional().default('QA'),
+  TEST_PAYER_LAST_NAME: z.string().optional().default('AUTOMATION'),
+  TEST_PAYER_PHONE: z.string().optional().default('3510000000'),
+  TEST_PAYER_ADDRESS: z.string().optional().default('AVENIDA SIRO 123'),
+  TEST_PAYER_CITY: z.string().optional().default('CORDOBA'),
+  TEST_PAYER_PROVINCE: z.string().optional().default('X'),
+  TEST_PAYER_ZIP: z.string().optional().default('5000'),
+  TEST_CARD_DEBIT_NUMBER: z.string().optional().default('1213141516171819'),
+  TEST_CARD_DEBIT_MM: z.string().optional().default('12'),
+  TEST_CARD_DEBIT_YY: z.string().optional().default('30'),
+  TEST_CARD_DEBIT_CVV: z.string().optional().default('123'),
+  TEST_CARD_CREDIT_NUMBER: z.string().optional().default('1213141516171819'),
+  TEST_CARD_CREDIT_MM: z.string().optional().default('12'),
+  TEST_CARD_CREDIT_YY: z.string().optional().default('30'),
+  TEST_CARD_CREDIT_CVV: z.string().optional().default('123'),
+  TEST_DEBIN_CBU: z.string().optional().default('0000003100000000000000'),
+  TEST_DEBIN_ALIAS: z.string().optional().default('qa.alias.demo'),
+  TEST_PMC_BANK_CODE: z.string().optional().default('510')
 });
 
 const clientSchema = z.object({

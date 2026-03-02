@@ -155,3 +155,16 @@ a {
   border-radius: 6px;
   padding: 2px 6px;
 }
+
+.json-block {
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7faff;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

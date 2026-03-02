@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RunStatusPill } from '@/components/runs/run-status-pill';
 import { formatDateTimeAr } from '@/lib/datetime';
@@ -36,6 +36,12 @@ export function RunLivePanel({
   const [steps, setSteps] = useState(initialSteps);
   const [events, setEvents] = useState(initialEvents);
   const [artifacts, setArtifacts] = useState(initialArtifacts);
+  const [qrImages, setQrImages] = useState<Record<string, string>>({});
+  const qrImagesRef = useRef<Record<string, string>>(qrImages);
+
+  useEffect(() => {
+    qrImagesRef.current = qrImages;
+  }, [qrImages]);
 
   const sortedSteps = useMemo(
     () => [...steps].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)),
@@ -51,6 +57,50 @@ export function RunLivePanel({
     () => [...artifacts].sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
     [artifacts]
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function buildQrImages() {
+      if (!sortedSteps.length) {
+        return;
+      }
+
+      try {
+        const { toDataURL } = await import('qrcode');
+        const updates: Record<string, string> = {};
+
+        for (const step of sortedSteps) {
+          const qrText =
+            step.response_json?.StringQREstatico ??
+            step.response_json?.StringQR ??
+            step.response_json?.StringQR;
+
+          if (!qrText || (typeof qrText !== 'string' && typeof qrText !== 'number')) {
+            continue;
+          }
+
+          if (qrImagesRef.current[step.id]) {
+            continue;
+          }
+
+          updates[step.id] = await toDataURL(String(qrText), { width: 320 });
+        }
+
+        if (mounted && Object.keys(updates).length > 0) {
+          setQrImages((current) => ({ ...current, ...updates }));
+        }
+      } catch {
+        // qrcode library missing; user will install later.
+      }
+    }
+
+    void buildQrImages();
+
+    return () => {
+      mounted = false;
+    };
+  }, [sortedSteps]);
 
   useEffect(() => {
     let active = true;
@@ -255,6 +305,28 @@ export function RunLivePanel({
               {step.error_message ? (
                 <div className="badge badge-err">{String(step.error_message)}</div>
               ) : null}
+              {(() => {
+                const qrText =
+                  step.response_json?.StringQREstatico ??
+                  step.response_json?.StringQR ??
+                  step.response_json?.StringQR;
+                const qrImage = qrImages[step.id];
+
+                if (!qrText && !qrImage) {
+                  return null;
+                }
+
+                return (
+                  <div className="qr-block">
+                    <span className="muted">QR</span>
+                    {qrImage ? (
+                      <img src={qrImage} alt="Código QR generado" />
+                    ) : (
+                      <div className="muted">Generando QR…</div>
+                    )}
+                  </div>
+                );
+              })()}
             </details>
           ))}
         </div>

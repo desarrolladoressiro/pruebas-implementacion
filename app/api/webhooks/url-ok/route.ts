@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { appendRunEvent, updateRunStatus } from '@/lib/runs/repository';
+import { appendRunEvent, finishRunStep, updateRunStatus } from '@/lib/runs/repository';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 
 function paramsToObject(params: URLSearchParams) {
@@ -7,6 +7,30 @@ function paramsToObject(params: URLSearchParams) {
     acc[key] = value;
     return acc;
   }, {});
+}
+
+async function finalizeAwaitingSteps(runId: string, payload: Record<string, string>, body: any, kind: string) {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: steps, error } = await supabase
+    .from('run_steps')
+    .select('id')
+    .eq('run_id', runId)
+    .eq('status', 'awaiting_external_event');
+
+  if (error || !steps?.length) {
+    return;
+  }
+
+  for (const step of steps) {
+    await finishRunStep({
+      stepId: step.id,
+      status: kind === 'error' ? 'failed' : 'success',
+      responseJson: {
+        webhook: payload,
+        body: body ?? {}
+      }
+    });
+  }
 }
 
 async function processWebhook(request: Request, body?: any) {
@@ -34,6 +58,8 @@ async function processWebhook(request: Request, body?: any) {
         body: body ?? {}
       }
     });
+
+    await finalizeAwaitingSteps(runId, queryParams, body, kind);
 
     if (kind === 'error') {
       await updateRunStatus(runId, 'failed', {

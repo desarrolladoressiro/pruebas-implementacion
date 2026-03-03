@@ -429,12 +429,13 @@ export async function simulatePagoInBrowser(
   }
 
   const browser = await chromium.launch({
-    headless:
-      input.playwright_headless !== undefined
-        ? String(input.playwright_headless).toLowerCase() === 'true'
-        : process.env.NODE_ENV === 'production'
-          ? env.PLAYWRIGHT_HEADLESS === 'true'
-          : false,
+    // headless:
+    //   input.playwright_headless !== undefined
+    //     ? String(input.playwright_headless).toLowerCase() === 'true'
+    //     : process.env.NODE_ENV === 'production'
+    //       ? env.PLAYWRIGHT_HEADLESS === 'true'
+    //       : false,
+    headless: 'true',
     slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
   });
 

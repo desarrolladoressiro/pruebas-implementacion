@@ -11,6 +11,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     default_input: {
       Concepto: 'PRUEBA AUTOMATIZADA API PAGO',
       Importe: 100,
+      canal: 'td',
+      run_browser: true,
       Detalle: [
         {
           Descripcion: 'SERVICIO',

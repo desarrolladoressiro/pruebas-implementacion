@@ -63,7 +63,8 @@ export function buildNroComprobante({
 
   const first15 = `AUTO${padLeft(now.getDate(), 2)}${padLeft(now.getHours(), 2)}${padLeft(now.getMinutes(), 2)}${padLeft(now.getSeconds(), 2)}${padLeft(now.getTime() % 100000, 5)}`.slice(0, 15);
 
-  return `${first15}${concept}${mm}${aa}${seq.slice(-1)}`.slice(0, 20);
+  const randomSuffix = padLeft(Math.floor(Math.random() * 100000), 5);
+  return `${first15}${concept}${mm}${aa}${randomSuffix}`.slice(0, 20);
 }
 
 export function buildIdReferenciaOperacion(prefix: string) {

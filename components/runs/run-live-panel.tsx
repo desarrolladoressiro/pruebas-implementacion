@@ -373,6 +373,7 @@ export function RunLivePanel({
                 <th>Fecha</th>
                 <th>Tipo</th>
                 <th>Path</th>
+                <th>Preview</th>
               </tr>
             </thead>
             <tbody>
@@ -381,6 +382,22 @@ export function RunLivePanel({
                   <td>{formatDateTimeAr(artifact.created_at)}</td>
                   <td>{String(artifact.artifact_type)}</td>
                   <td>{String(artifact.storage_path)}</td>
+                  <td>
+                    {artifact.metadata_json?.data_url ? (
+                      <img
+                        src={String(artifact.metadata_json.data_url)}
+                        alt={String(artifact.metadata_json?.name ?? 'Artifact')}
+                        style={{
+                          width: 220,
+                          maxWidth: '100%',
+                          border: '1px solid var(--border)',
+                          borderRadius: 8
+                        }}
+                      />
+                    ) : (
+                      <span className="muted">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

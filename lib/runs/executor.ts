@@ -1,4 +1,6 @@
 import { getEnv } from '@/lib/env';
+import { executePagoFollowupQueries } from '@/lib/runs/pago-followup';
+import { PaymentChannel, simulatePagoInBrowser } from '@/lib/runs/payment-browser';
 import { generateBaseBasicoLinkPagos, generateBaseFullPagoMisCuentas } from '@/lib/siro/base-generator';
 import { SiroClient } from '@/lib/siro/client';
 import {
@@ -102,6 +104,75 @@ function shouldUseVmForNotifications(canal: unknown) {
   return normalized.length > 0 && VM_NOTIFICATION_CHANNELS.has(normalized);
 }
 
+function resolvePagoChannel(canal: unknown): PaymentChannel {
+  const normalized = normalizeCanal(canal);
+
+  switch (normalized) {
+    case 'd':
+    case 'td':
+    case 'debito':
+    case 'tarjeta_debito':
+    case 'tarjeta_deb':
+      return 'td';
+    case 'c':
+    case 'tc':
+    case 'credito':
+    case 'tarjeta_credito':
+    case 'tarjeta_cred':
+      return 'tc';
+    case 'q':
+    case 'qr':
+      return 'qr';
+    case 'n':
+    case 'debin':
+      return 'debin';
+    case 'l':
+    case 'lk':
+    case 'link':
+    case 'link_pagos':
+      return 'link';
+    case 'b':
+    case 'pmc':
+    case 'pago_mis_cuentas':
+      return 'pmc';
+    default:
+      return 'td';
+  }
+}
+
+function getStringField(source: Record<string, any>, keys: string[]) {
+  for (const key of keys) {
+    const value = String(source[key] ?? '').trim();
+    if (value.length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getQueryValue(query: Record<string, string>, keys: string[]) {
+  for (const key of keys) {
+    const value = String(query[key] ?? '').trim();
+    if (value.length > 0) {
+      return value;
+    }
+  }
+
+  const lower = Object.entries(query).reduce<Record<string, string>>((acc, [key, value]) => {
+    acc[key.toLowerCase()] = value;
+    return acc;
+  }, {});
+
+  for (const key of keys) {
+    const value = String(lower[key.toLowerCase()] ?? '').trim();
+    if (value.length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function buildPagoCallbackUrls({
   runId,
   canal,
@@ -201,9 +272,11 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
   const profile = await getProfileByUserId(run.user_id);
   const baseCliente = getProfileBaseCliente(profile);
   const siro = new SiroClient(run.environment);
+  const channel = resolvePagoChannel(input.canal);
+  const runBrowser = toBooleanValue(input.run_browser ?? input.ejecutar_browser, true);
   const callbackUrls = buildPagoCallbackUrls({
     runId: run.id,
-    canal: input.canal
+    canal: input.canal ?? channel
   });
 
   const fallbackAmount = toNumberValue(input.Importe, 100);
@@ -236,10 +309,13 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
   });
 
   const response = await siro.createPago(payload);
+  const responseRecord = asRecord(response);
+  const paymentUrl = getStringField(responseRecord, ['URL', 'Url', 'url']);
+  const hash = getStringField(responseRecord, ['Hash', 'hash']);
 
   await finishRunStep({
     stepId: step.id,
-    status: 'awaiting_external_event',
+    status: 'success',
     responseJson: response
   });
 
@@ -247,18 +323,138 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
     runId: run.id,
     stepId: step.id,
     level: 'info',
-    message: 'Intencion creada. Run en espera de URL_OK.',
+    message: 'Intencion creada en /api/Pago',
     payload: {
+      canal: channel,
       idReferenciaOperacion: comprobante.idReferenciaOperacion,
-      hash: String((response as any)?.Hash ?? ''),
+      hash: hash ?? null,
+      paymentUrl: paymentUrl ?? null,
       callback_base_url: callbackUrls.baseUrl,
       callback_via_vm: callbackUrls.useVmBase
     }
   });
 
-  await updateRunStatus(run.id, 'waiting_webhook', {
+  let browserResult: Record<string, any> | undefined;
+  let followupBrowser: Record<string, any> | undefined;
+  let idResultado = '';
+  let idReferenciaOperacion = comprobante.idReferenciaOperacion;
+  const requiresRedirectSuccess = channel === 'td' || channel === 'tc';
+
+  if (runBrowser) {
+    if (!paymentUrl) {
+      throw new Error('La creacion de /api/Pago no devolvio URL para abrir el Boton de Pagos.');
+    }
+
+    const browserStep = await createRunStep({
+      runId: run.id,
+      stepCode: 'playwright_pago',
+      stepName: `Navegar Boton de Pagos (${channel.toUpperCase()})`,
+      sequence: 2,
+      requestJson: {
+        canal: channel,
+        paymentUrl,
+        playwright_headless: input.playwright_headless ?? null
+      }
+    });
+
+    try {
+      const browserResponse = await simulatePagoInBrowser({
+        runId: run.id,
+        stepId: browserStep.id,
+        paymentUrl,
+        channel,
+        input,
+        profile
+      });
+
+      idResultado = toStringValue(
+        browserResponse.idResultado ??
+          getQueryValue(browserResponse.callbackQuery, ['IdResultado', 'id_resultado', 'idResultado']),
+        ''
+      );
+      idReferenciaOperacion = toStringValue(
+        browserResponse.idReferenciaOperacion ??
+          getQueryValue(browserResponse.callbackQuery, [
+            'IdReferenciaOperacion',
+            'idReferenciaOperacion',
+            'id_referencia_operacion'
+          ]),
+        idReferenciaOperacion
+      );
+
+      browserResult = {
+        ...browserResponse,
+        canal: channel
+      };
+
+      if (requiresRedirectSuccess && idResultado.length === 0) {
+        throw new Error(
+          'No se detecto redireccion URL_OK con IdResultado en canal de tarjeta. El flujo de navegacion se considera fallido.'
+        );
+      }
+
+      await finishRunStep({
+        stepId: browserStep.id,
+        status: 'success',
+        responseJson: browserResult
+      });
+    } catch (error) {
+      await finishRunStep({
+        stepId: browserStep.id,
+        status: 'failed',
+        responseJson: browserResult,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
+
+    if (!requiresRedirectSuccess || idResultado.length > 0) {
+      followupBrowser = await executePagoFollowupQueries({
+        runId: run.id,
+        environment: run.environment,
+        source: 'post_browser',
+        hash,
+        idResultado,
+        idReferenciaOperacion
+      });
+    }
+  } else {
+    await appendRunEvent({
+      runId: run.id,
+      stepId: step.id,
+      level: 'warn',
+      message: 'Navegacion Playwright omitida por configuracion',
+      payload: {
+        canal: channel
+      }
+    });
+  }
+
+  const shouldWaitWebhook = idResultado.length === 0;
+  if (shouldWaitWebhook) {
+    await createRunStep({
+      runId: run.id,
+      stepCode: 'espera_url_ok',
+      stepName: 'Esperar notificacion URL_OK',
+      sequence: 90,
+      status: 'awaiting_external_event',
+      requestJson: {
+        canal: channel,
+        idReferenciaOperacion
+      }
+    });
+  }
+
+  await updateRunStatus(run.id, shouldWaitWebhook ? 'waiting_webhook' : 'completed', {
     request: payload,
-    response
+    response,
+    canal: channel,
+    payment_url: paymentUrl ?? null,
+    hash: hash ?? null,
+    idResultado: idResultado || null,
+    idReferenciaOperacion,
+    browser: browserResult ?? null,
+    followup_browser: followupBrowser ?? null
   });
 }
 
@@ -268,7 +464,7 @@ async function executeSiroPagosConsulta(run: RunRow) {
 
   const payload: JsonObject = {
     FechaDesde: toStringValue(input.FechaDesde, isoNowMinus(7)),
-    FechaHasta: toStringValue(input.FechaHasta, isoNowPlus(1)),
+    FechaHasta: toStringValue(input.FechaHasta, isoNowPlus(0)),
     idReferenciaOperacion: toOptionalString(input.idReferenciaOperacion ?? input.IdReferenciaOperacion),
     estado: toOptionalString(input.estado),
     nro_terminal: toOptionalString(input.nro_terminal)

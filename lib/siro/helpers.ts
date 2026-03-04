@@ -50,21 +50,25 @@ export function buildNroClienteEmpresa(baseCliente: string) {
 
 export function buildNroComprobante({
   conceptDigit,
-  sequence
+  sequence,
+  base
 }: {
   conceptDigit?: number;
   sequence?: number;
+  base?: string;
 }) {
-  const now = new Date();
-  const mm = padLeft(now.getMonth() + 1, 2);
-  const aa = padLeft(now.getFullYear() % 100, 2);
-  const concept = padLeft(conceptDigit ?? 0, 1);
-  const seq = padLeft(sequence ?? Number(now.getMilliseconds()), 4);
-
-  const first15 = `AUTO${padLeft(now.getDate(), 2)}${padLeft(now.getHours(), 2)}${padLeft(now.getMinutes(), 2)}${padLeft(now.getSeconds(), 2)}${padLeft(now.getTime() % 100000, 5)}`.slice(0, 15);
+  const cleanedBase = String(base ?? '').trim().replace(/\s+/g, '');
+  const first15 =
+    cleanedBase.length > 0
+      ? cleanedBase.slice(0, 15).padEnd(15, '0')
+      : (() => {
+          const now = new Date();
+          const seq = padLeft(sequence ?? Number(now.getMilliseconds()), 4);
+          return `AUTO${padLeft(now.getDate(), 2)}${padLeft(now.getHours(), 2)}${padLeft(now.getMinutes(), 2)}${padLeft(now.getSeconds(), 2)}${seq}${padLeft(now.getTime() % 10000, 4)}`.slice(0, 15);
+        })();
 
   const randomSuffix = padLeft(Math.floor(Math.random() * 100000), 5);
-  return `${first15}${concept}${mm}${aa}${randomSuffix}`.slice(0, 20);
+  return `${first15}${randomSuffix}`;
 }
 
 export function buildIdReferenciaOperacion(prefix: string) {

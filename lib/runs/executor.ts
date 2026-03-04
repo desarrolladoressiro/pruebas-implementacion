@@ -237,7 +237,10 @@ function resolveComprobanteContext({
       input.nro_cliente_empresa ?? input.numeroClienteEmpresa,
       buildNroClienteEmpresa(baseCliente)
     ),
-    nroComprobante: toStringValue(input.nro_comprobante, buildNroComprobante({ conceptDigit }))
+    nroComprobante: buildNroComprobante({
+      conceptDigit,
+      base: toOptionalString(input.nro_comprobante)
+    })
   };
 }
 

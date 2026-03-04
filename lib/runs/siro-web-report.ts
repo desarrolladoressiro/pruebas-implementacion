@@ -30,11 +30,23 @@ function resolveSiroWebCredentials(environment: TargetEnvironment) {
 
   const isProd = environment === 'produccion';
   const user = isProd
-    ? trimToOptional(env.SIRO_WEB_USER_PRODUCCION) ?? trimToOptional(env.SIRO_WEB_USER)
-    : trimToOptional(env.SIRO_WEB_USER_HOMOLOGACION) ?? trimToOptional(env.SIRO_WEB_USER);
+    ? trimToOptional(env.SIRO_WEB_USER_PRODUCCION)
+      ?? trimToOptional(env.SIRO_WEB_USER_PROD)
+      ?? trimToOptional(env.SIRO_WEB_USER)
+      ?? trimToOptional(env.SIRO_PROD_USER)
+    : trimToOptional(env.SIRO_WEB_USER_HOMOLOGACION)
+      ?? trimToOptional(env.SIRO_WEB_USER_HOMO)
+      ?? trimToOptional(env.SIRO_WEB_USER)
+      ?? trimToOptional(env.SIRO_HOMO_USER);
   const password = isProd
-    ? trimToOptional(env.SIRO_WEB_PASSWORD_PRODUCCION) ?? trimToOptional(env.SIRO_WEB_PASSWORD)
-    : trimToOptional(env.SIRO_WEB_PASSWORD_HOMOLOGACION) ?? trimToOptional(env.SIRO_WEB_PASSWORD);
+    ? trimToOptional(env.SIRO_WEB_PASSWORD_PRODUCCION)
+      ?? trimToOptional(env.SIRO_WEB_PASSWORD_PROD)
+      ?? trimToOptional(env.SIRO_WEB_PASSWORD)
+      ?? trimToOptional(env.SIRO_PROD_PASSWORD)
+    : trimToOptional(env.SIRO_WEB_PASSWORD_HOMOLOGACION)
+      ?? trimToOptional(env.SIRO_WEB_PASSWORD_HOMO)
+      ?? trimToOptional(env.SIRO_WEB_PASSWORD)
+      ?? trimToOptional(env.SIRO_HOMO_PASSWORD);
 
   if (!user || !password) {
     throw new Error(

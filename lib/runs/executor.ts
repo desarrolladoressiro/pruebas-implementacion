@@ -357,7 +357,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
         canal: channel,
         paymentUrl,
         // playwright_headless: input.playwright_headless ?? null
-        playwright_headless: true
+        playwright_headless: false
       }
     });
 
@@ -413,7 +413,8 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
       throw error;
     }
 
-    if (!requiresRedirectSuccess || idResultado.length > 0) {
+    const shouldRunPostBrowserFollowup = requiresRedirectSuccess && idResultado.length > 0;
+    if (shouldRunPostBrowserFollowup) {
       followupBrowser = await executePagoFollowupQueries({
         runId: run.id,
         environment: run.environment,
@@ -421,6 +422,18 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
         hash,
         idResultado,
         idReferenciaOperacion
+      });
+    } else {
+      await appendRunEvent({
+        runId: run.id,
+        stepId: browserStep.id,
+        level: 'info',
+        message: 'Se omiten consultas de estado post_browser. Se esperara URL_OK para seguimiento.',
+        payload: {
+          canal: channel,
+          requiresRedirectSuccess,
+          idResultado: idResultado || null
+        }
       });
     }
   } else {

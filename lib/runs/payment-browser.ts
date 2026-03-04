@@ -395,13 +395,15 @@ async function runCardPaymentFlow({
   channel,
   input,
   profile,
-  environment
+  environment,
+  onBeforePay
 }: {
   page: any;
   channel: PaymentChannel;
   input: Record<string, any>;
   profile?: Record<string, any> | null;
   environment: TargetEnvironment;
+  onBeforePay?: () => Promise<void>;
 }) {
   const card = resolveCardData(channel, input, profile, environment);
 
@@ -438,6 +440,7 @@ async function runCardPaymentFlow({
   const cardEmailSelectors = ['#card_data input[name="Mail"]', '#card_data #txtMail', 'input[name="Mail"]'];
   const autoFilledPersonalData = await hasAutoFilledPersonalData(page);
   if (autoFilledPersonalData) {
+    await onBeforePay?.();
     await clickFirst(page, [
       '#MY_btnConfirmarPago',
       'input[type="submit"][value="Pagar"]',
@@ -472,6 +475,7 @@ async function runCardPaymentFlow({
   await fillFirst(page, ['#txtCodigoPostal', 'input[name="CodigoPostal"]'], card.zip);
   await failIfPaymentErrorModal(page, channel);
 
+  await onBeforePay?.();
   await clickFirst(page, [
     '#MY_btnConfirmarPago',
     'input[type="submit"][value="Pagar"]',
@@ -566,7 +570,7 @@ export async function simulatePagoInBrowser(
     //     : process.env.NODE_ENV === 'production'
     //       ? env.PLAYWRIGHT_HEADLESS === 'true'
     //       : false,
-    headless: true,
+    headless: false,
     slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
   });
 
@@ -609,6 +613,15 @@ export async function simulatePagoInBrowser(
     const mailComprobanteFilled = await fillFirst(page, ['input[name="MailComprobante"]', '#divComprobantePago #txtMail'], email);
     if (options.environment === 'produccion' && !mailComprobanteFilled) {
       throw new Error('En produccion el campo de mail de comprobante es obligatorio y no se encontro en pantalla.');
+    }
+    if (mailComprobanteFilled) {
+      await saveScreenshotArtifact({
+        page,
+        runId: options.runId,
+        stepId: options.stepId,
+        channel: options.channel,
+        name: '00-after-mail-comprobante'
+      });
     }
 
     const selected = await clickFirst(page, channelSelectors(options.channel));
@@ -656,7 +669,16 @@ export async function simulatePagoInBrowser(
         channel: options.channel,
         input,
         profile,
-        environment: options.environment
+        environment: options.environment,
+        onBeforePay: async () => {
+          await saveScreenshotArtifact({
+            page,
+            runId: options.runId,
+            stepId: options.stepId,
+            channel: options.channel,
+            name: '02-before-pagar-card-form'
+          });
+        }
       });
       await page.waitForTimeout(2_000);
       await saveScreenshotArtifact({

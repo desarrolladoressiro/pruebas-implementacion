@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BANK_OPTIONS } from '@/lib/banks';
 
 interface ProfileData {
   email: string | null;
@@ -72,12 +73,19 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
         </label>
 
         <label>
-          Banco preferido (codigo)
-          <input
-            className="input"
+          Banco preferido
+          <select
+            className="select"
             value={form.preferred_bank ?? ''}
-            onChange={(event) => patchField('preferred_bank', event.target.value)}
-          />
+            onChange={(event) => patchField('preferred_bank', event.target.value || null)}
+          >
+            <option value="">Seleccionar banco</option>
+            {BANK_OPTIONS.map((bank) => (
+              <option key={`${bank.value}-${bank.label}`} value={bank.value}>
+                {bank.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 

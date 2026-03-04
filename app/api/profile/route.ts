@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCurrentUser } from '@/lib/auth';
+import { BANK_CODES } from '@/lib/banks';
 import { getOrCreateProfile, updateProfile } from '@/lib/profile';
 
 const profilePatchSchema = z.object({
   dni: z.string().max(20).optional().nullable(),
   cbu: z.string().max(30).optional().nullable(),
   alias: z.string().max(100).optional().nullable(),
-  preferred_bank: z.string().max(10).optional().nullable(),
+  preferred_bank: z
+    .string()
+    .max(10)
+    .refine((value) => BANK_CODES.includes(value), { message: 'Banco preferido invalido.' })
+    .optional()
+    .nullable(),
   base_cliente: z.string().max(9).optional().nullable(),
   notes: z.string().max(500).optional().nullable()
 });

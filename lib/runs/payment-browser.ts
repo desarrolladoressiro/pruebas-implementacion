@@ -1,5 +1,6 @@
 import { getEnv } from '@/lib/env';
 import { addRunArtifact, appendRunEvent } from '@/lib/runs/repository';
+import { TargetEnvironment } from '@/lib/types';
 
 export type PaymentChannel = 'td' | 'tc' | 'qr' | 'debin' | 'link' | 'pmc';
 
@@ -7,6 +8,7 @@ interface BrowserSimulationOptions {
   runId: string;
   stepId: string;
   paymentUrl: string;
+  environment: TargetEnvironment;
   channel: PaymentChannel;
   input: Record<string, any>;
   profile?: Record<string, any> | null;
@@ -138,6 +140,62 @@ async function failIfPaymentErrorModal(page: any, channel: PaymentChannel) {
   );
 }
 
+function urlHasIdResultado(url: string) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.searchParams.has('IdResultado')
+      || parsed.searchParams.has('id_resultado')
+      || parsed.searchParams.has('idResultado')
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function waitCardProcessingRedirect({
+  page,
+  channel,
+  maxWaitMs = 180_000
+}: {
+  page: any;
+  channel: PaymentChannel;
+  maxWaitMs?: number;
+}) {
+  const processingText = page.getByText(/Procesando.*Espere por favor/i).first();
+  const phaseStart = Date.now();
+  let processingDetected = false;
+
+  while (Date.now() - phaseStart < 15_000) {
+    await failIfPaymentErrorModal(page, channel);
+    if (urlHasIdResultado(page.url())) {
+      return;
+    }
+
+    if (await processingText.isVisible().catch(() => false)) {
+      processingDetected = true;
+      break;
+    }
+
+    await page.waitForTimeout(500);
+  }
+
+  if (!processingDetected) {
+    throw new Error('No se detecto el cartel "Procesando... Espere por favor" luego de presionar Pagar.');
+  }
+
+  const waitStart = Date.now();
+  while (Date.now() - waitStart < maxWaitMs) {
+    await failIfPaymentErrorModal(page, channel);
+    if (urlHasIdResultado(page.url())) {
+      return;
+    }
+    await page.waitForTimeout(1_000);
+  }
+
+  throw new Error('Timeout esperando redireccion URL_OK en canal de tarjeta (3 minutos).');
+}
+
 function parseQueryFromUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -189,13 +247,60 @@ function extractCpeFromText(text: string) {
   return candidateMatches.sort((a, b) => b.length - a.length)[0];
 }
 
+function requireSecureValue(value: unknown, envKey: string) {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    throw new Error(`Falta variable de entorno segura en produccion: ${envKey}`);
+  }
+  return text;
+}
+
+function requireProfileDni(profile: Record<string, any> | null | undefined) {
+  const dni = String(profile?.dni ?? '').trim();
+  if (!dni) {
+    throw new Error('En produccion para TD/TC el DNI debe estar cargado en el perfil del usuario.');
+  }
+  return dni;
+}
+
 function resolveCardData(
   channel: PaymentChannel,
   input: Record<string, any>,
-  profile: Record<string, any> | null | undefined
+  profile: Record<string, any> | null | undefined,
+  environment: TargetEnvironment
 ) {
   const env = getEnv();
   const isCredit = channel === 'tc';
+  const isProduction = environment === 'produccion';
+
+  if (isProduction) {
+    return {
+      cardNumber: isCredit
+        ? requireSecureValue(env.PROD_CARD_CREDIT_NUMBER, 'PROD_CARD_CREDIT_NUMBER')
+        : requireSecureValue(env.PROD_CARD_DEBIT_NUMBER, 'PROD_CARD_DEBIT_NUMBER'),
+      month: isCredit
+        ? requireSecureValue(env.PROD_CARD_CREDIT_MM, 'PROD_CARD_CREDIT_MM')
+        : requireSecureValue(env.PROD_CARD_DEBIT_MM, 'PROD_CARD_DEBIT_MM'),
+      year: isCredit
+        ? requireSecureValue(env.PROD_CARD_CREDIT_YY, 'PROD_CARD_CREDIT_YY')
+        : requireSecureValue(env.PROD_CARD_DEBIT_YY, 'PROD_CARD_DEBIT_YY'),
+      cvv: isCredit
+        ? requireSecureValue(env.PROD_CARD_CREDIT_CVV, 'PROD_CARD_CREDIT_CVV')
+        : requireSecureValue(env.PROD_CARD_DEBIT_CVV, 'PROD_CARD_DEBIT_CVV'),
+      dni: requireProfileDni(profile),
+      email: requireSecureValue(env.PROD_PAYER_EMAIL, 'PROD_PAYER_EMAIL'),
+      firstName: requireSecureValue(env.PROD_PAYER_FIRST_NAME, 'PROD_PAYER_FIRST_NAME'),
+      lastName: requireSecureValue(env.PROD_PAYER_LAST_NAME, 'PROD_PAYER_LAST_NAME'),
+      phone: requireSecureValue(env.PROD_PAYER_PHONE, 'PROD_PAYER_PHONE'),
+      address: requireSecureValue(env.PROD_PAYER_ADDRESS, 'PROD_PAYER_ADDRESS'),
+      city: requireSecureValue(env.PROD_PAYER_CITY, 'PROD_PAYER_CITY'),
+      province: requireSecureValue(env.PROD_PAYER_PROVINCE, 'PROD_PAYER_PROVINCE'),
+      zip: requireSecureValue(env.PROD_PAYER_ZIP, 'PROD_PAYER_ZIP'),
+      birthDay: String(input.birth_day ?? '15'),
+      birthMonth: String(input.birth_month ?? '06'),
+      birthYear: String(input.birth_year ?? '1990')
+    };
+  }
 
   const cardPrefix = isCredit ? 'credit' : 'debit';
   const cardNumber =
@@ -229,6 +334,28 @@ function resolveCardData(
     birthMonth: String(input.birth_month ?? '06'),
     birthYear: String(input.birth_year ?? '1990')
   };
+}
+
+async function hasAutoFilledPersonalData(page: any) {
+  const values = await Promise.all([
+    getInputValueFirstVisible(page, ['#card_data input[name="Mail"]', '#card_data #txtMail', 'input[name="Mail"]']),
+    getInputValueFirstVisible(page, ['#txtNombres', 'input[name="Nombres"]']),
+    getInputValueFirstVisible(page, ['#txtApellidos', 'input[name="Apellidos"]']),
+    getInputValueFirstVisible(page, ['#txtTelefono', 'input[name="Telefono"]']),
+    getInputValueFirstVisible(page, ['#txtDiaNac']),
+    getInputValueFirstVisible(page, ['#txtMesNac']),
+    getInputValueFirstVisible(page, ['#txtAnioNac']),
+    getInputValueFirstVisible(page, ['#txtDireccion', 'input[name="Direccion"]']),
+    getInputValueFirstVisible(page, ['#txtCiudad', 'input[name="Localidad"]']),
+    getInputValueFirstVisible(page, ['#txtCodigoPostal', 'input[name="CodigoPostal"]'])
+  ]);
+
+  const provinceLocator = await getFirstVisibleLocator(page, ['#cboProvincia', 'select[name="Provincia"]']);
+  const provinceValue = provinceLocator
+    ? String((await provinceLocator.inputValue().catch(() => '')) ?? '').trim()
+    : '';
+
+  return values.every((value) => value.length > 0) && provinceValue.length > 0;
 }
 
 async function saveScreenshotArtifact({
@@ -267,21 +394,23 @@ async function runCardPaymentFlow({
   page,
   channel,
   input,
-  profile
+  profile,
+  environment
 }: {
   page: any;
   channel: PaymentChannel;
   input: Record<string, any>;
   profile?: Record<string, any> | null;
+  environment: TargetEnvironment;
 }) {
-  const card = resolveCardData(channel, input, profile);
+  const card = resolveCardData(channel, input, profile, environment);
 
   if (channel === 'td') {
     // En débito suele pedirse marca en la segunda pantalla.
     await clickFirst(page, [
+      '[id="105"]',
       '[id="31"]',
       '[id="106"]',
-      '[id="105"]',
       '[id="108"]',
       '.img-outline'
     ]);
@@ -307,8 +436,8 @@ async function runCardPaymentFlow({
   await page.waitForTimeout(5_000);
 
   const cardEmailSelectors = ['#card_data input[name="Mail"]', '#card_data #txtMail', 'input[name="Mail"]'];
-  const autoFilledEmail = await getInputValueFirstVisible(page, cardEmailSelectors);
-  if (autoFilledEmail.length > 0) {
+  const autoFilledPersonalData = await hasAutoFilledPersonalData(page);
+  if (autoFilledPersonalData) {
     await clickFirst(page, [
       '#MY_btnConfirmarPago',
       'input[type="submit"][value="Pagar"]',
@@ -316,6 +445,7 @@ async function runCardPaymentFlow({
     ]);
     await page.waitForTimeout(600);
     await failIfPaymentErrorModal(page, channel);
+    await waitCardProcessingRedirect({ page, channel });
     return;
   }
 
@@ -349,6 +479,7 @@ async function runCardPaymentFlow({
   ]);
   await page.waitForTimeout(600);
   await failIfPaymentErrorModal(page, channel);
+  await waitCardProcessingRedirect({ page, channel });
 }
 
 async function runDebinFlow({
@@ -429,13 +560,13 @@ export async function simulatePagoInBrowser(
   }
 
   const browser = await chromium.launch({
-    // headless:
-    //   input.playwright_headless !== undefined
-    //     ? String(input.playwright_headless).toLowerCase() === 'true'
-    //     : process.env.NODE_ENV === 'production'
-    //       ? env.PLAYWRIGHT_HEADLESS === 'true'
-    //       : false,
-    headless: true,
+    headless:
+      input.playwright_headless !== undefined
+        ? String(input.playwright_headless).toLowerCase() === 'true'
+        : process.env.NODE_ENV === 'production'
+          ? env.PLAYWRIGHT_HEADLESS === 'true'
+          : false,
+    // headless: true,
     slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
   });
 
@@ -471,9 +602,14 @@ export async function simulatePagoInBrowser(
       message: 'Landing de Boton de Pagos cargada'
     });
 
-    const email = String(input.email ?? profile.email ?? env.TEST_PAYER_EMAIL);
-    // En homologacion puede no existir el campo de mail de comprobante; si no aparece, se continua.
-    await fillFirst(page, ['input[name="MailComprobante"]', '#divComprobantePago #txtMail'], email);
+    const email =
+      options.environment === 'produccion'
+        ? requireSecureValue(env.PROD_PAYER_EMAIL, 'PROD_PAYER_EMAIL')
+        : String(input.email ?? profile.email ?? env.TEST_PAYER_EMAIL);
+    const mailComprobanteFilled = await fillFirst(page, ['input[name="MailComprobante"]', '#divComprobantePago #txtMail'], email);
+    if (options.environment === 'produccion' && !mailComprobanteFilled) {
+      throw new Error('En produccion el campo de mail de comprobante es obligatorio y no se encontro en pantalla.');
+    }
 
     const selected = await clickFirst(page, channelSelectors(options.channel));
     if (!selected) {
@@ -519,7 +655,8 @@ export async function simulatePagoInBrowser(
         page,
         channel: options.channel,
         input,
-        profile
+        profile,
+        environment: options.environment
       });
       await page.waitForTimeout(2_000);
       await saveScreenshotArtifact({

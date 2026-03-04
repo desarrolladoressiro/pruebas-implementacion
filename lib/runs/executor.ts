@@ -176,14 +176,17 @@ function getQueryValue(query: Record<string, string>, keys: string[]) {
 function buildPagoCallbackUrls({
   runId,
   canal,
-  forceVm
+  forceVm,
+  forceLocal
 }: {
   runId: string;
   canal?: unknown;
   forceVm?: boolean;
+  forceLocal?: boolean;
 }) {
   const env = getEnv();
-  const useVmBase = Boolean(env.GCP_VM_URL) && (forceVm || shouldUseVmForNotifications(canal));
+  const shouldUseVm = forceLocal ? false : (forceVm || shouldUseVmForNotifications(canal));
+  const useVmBase = Boolean(env.GCP_VM_URL) && shouldUseVm;
   const baseUrl = useVmBase ? String(env.GCP_VM_URL) : env.APP_BASE_URL;
   const ok = `${baseUrl}/api/webhooks/url-ok?run_id=${runId}`;
   const error = `${ok}&kind=error`;
@@ -279,7 +282,9 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
   const runBrowser = toBooleanValue(input.run_browser ?? input.ejecutar_browser, true);
   const callbackUrls = buildPagoCallbackUrls({
     runId: run.id,
-    canal: input.canal ?? channel
+    canal: input.canal ?? channel,
+    forceLocal: toBooleanValue(input.force_local_webhook, false),
+    forceVm: toBooleanValue(input.force_vm_webhook, false)
   });
 
   const fallbackAmount = toNumberValue(input.Importe, 100);
@@ -357,7 +362,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
         canal: channel,
         paymentUrl,
         // playwright_headless: input.playwright_headless ?? null
-        playwright_headless: true
+        playwright_headless: false
       }
     });
 

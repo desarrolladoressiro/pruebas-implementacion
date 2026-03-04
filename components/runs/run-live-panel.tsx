@@ -383,20 +383,41 @@ export function RunLivePanel({
                   <td>{String(artifact.artifact_type)}</td>
                   <td>{String(artifact.storage_path)}</td>
                   <td>
-                    {artifact.metadata_json?.data_url ? (
-                      <img
-                        src={String(artifact.metadata_json.data_url)}
-                        alt={String(artifact.metadata_json?.name ?? 'Artifact')}
-                        style={{
-                          width: 220,
-                          maxWidth: '100%',
-                          border: '1px solid var(--border)',
-                          borderRadius: 8
-                        }}
-                      />
-                    ) : (
-                      <span className="muted">-</span>
-                    )}
+                    {(() => {
+                      const dataUrl = String(artifact.metadata_json?.data_url ?? '');
+                      if (!dataUrl) {
+                        return <span className="muted">-</span>;
+                      }
+
+                      const mimeType = String(artifact.metadata_json?.mime_type ?? '');
+                      const fileName = String(
+                        artifact.metadata_json?.file_name
+                        ?? artifact.metadata_json?.name
+                        ?? 'artifact'
+                      );
+                      const isImage = mimeType.startsWith('image/') || dataUrl.startsWith('data:image/');
+
+                      if (isImage) {
+                        return (
+                          <img
+                            src={dataUrl}
+                            alt={fileName}
+                            style={{
+                              width: 220,
+                              maxWidth: '100%',
+                              border: '1px solid var(--border)',
+                              borderRadius: 8
+                            }}
+                          />
+                        );
+                      }
+
+                      return (
+                        <a href={dataUrl} download={fileName}>
+                          Descargar {fileName}
+                        </a>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}

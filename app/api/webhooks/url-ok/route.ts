@@ -131,7 +131,10 @@ async function processWebhook(request: Request, body?: any) {
     const runOutput = asRecord(runRow?.output_json);
     const runInput = asRecord(runRow?.input_json);
 
-    if (runRow?.test_definition_key?.startsWith('siro_pagos_')) {
+    const testKey = String(runRow?.test_definition_key ?? '');
+    const isSiroPagosRun = testKey.startsWith('siro_pagos_') || testKey.includes('siro_pagos');
+
+    if (isSiroPagosRun) {
       const idResultado = pickFirstValue([
         queryParams.IdResultado,
         queryParams.id_resultado,
@@ -181,16 +184,34 @@ async function processWebhook(request: Request, body?: any) {
       }
 
       try {
-        if (runRow.environment) {
-          followupWebhook = await executePagoFollowupQueries({
-            runId,
-            environment: runRow.environment as TargetEnvironment,
-            source: 'post_webhook',
-            hash: resolvedHash,
-            idResultado,
-            idReferenciaOperacion: resolvedIdReferencia
-          });
-        }
+        const fallbackEnvironment =
+          (pickFirstValue([
+            runRow?.environment,
+            runOutput?.environment,
+            runInput?.environment
+          ]) as TargetEnvironment | undefined) ?? 'homologacion';
+
+        await appendRunEvent({
+          runId,
+          level: 'info',
+          message: 'Iniciando seguimiento post-webhook (API + SIRO WEB)',
+          payload: {
+            testDefinitionKey: testKey,
+            environment: fallbackEnvironment,
+            hash: resolvedHash ?? null,
+            idResultado: idResultado ?? null,
+            idReferenciaOperacion: resolvedIdReferencia ?? null
+          }
+        });
+
+        followupWebhook = await executePagoFollowupQueries({
+          runId,
+          environment: fallbackEnvironment,
+          source: 'post_webhook',
+          hash: resolvedHash,
+          idResultado,
+          idReferenciaOperacion: resolvedIdReferencia
+        });
       } catch (error) {
         await appendRunEvent({
           runId,

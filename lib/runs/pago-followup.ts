@@ -1,6 +1,7 @@
 import { appendRunEvent, createRunStep, finishRunStep } from '@/lib/runs/repository';
 import { SiroClient } from '@/lib/siro/client';
 import { isoNowMinus, isoNowPlus } from '@/lib/siro/helpers';
+import { downloadSiroWebTransaccionesLineaReport } from '@/lib/runs/siro-web-report';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { JsonObject, TargetEnvironment } from '@/lib/types';
 
@@ -22,6 +23,7 @@ export interface PagoFollowupResult {
   idReferenciaOperacion: string | null;
   hashResultadoResponse?: JsonObject;
   consultaResponse?: JsonObject;
+  siroWebTransaccionesLinea?: JsonObject;
 }
 
 function trimToOptional(value: unknown) {
@@ -122,6 +124,7 @@ export async function executePagoFollowupQueries(
       sequence,
       requestJson: requestPayload
     });
+    sequence += 1;
 
     const consultaResponse = await siro.consultaPago(requestPayload);
     await finishRunStep({
@@ -152,6 +155,56 @@ export async function executePagoFollowupQueries(
       idReferenciaOperacion: idReferenciaOperacion ?? null
     }
   });
+
+  const siroWebStep = await createRunStep({
+    runId: options.runId,
+    stepCode: options.source === 'post_webhook' ? 'siro_web_xlistpend_webhook' : 'siro_web_xlistpend_browser',
+    stepName:
+      options.source === 'post_webhook'
+        ? 'SIRO WEB - Reporte Transacciones en Linea (despues de webhook)'
+        : 'SIRO WEB - Reporte Transacciones en Linea (despues de navegador)',
+    sequence,
+    requestJson: {
+      reporte: 'XLISTPEND',
+      descripcion: 'Transacciones en Linea'
+    }
+  });
+
+  try {
+    const reportResult = await downloadSiroWebTransaccionesLineaReport({
+      runId: options.runId,
+      stepId: siroWebStep.id,
+      environment: options.environment
+    });
+
+    await finishRunStep({
+      stepId: siroWebStep.id,
+      status: 'success',
+      responseJson: { ...reportResult }
+    });
+    result.siroWebTransaccionesLinea = { ...reportResult };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await finishRunStep({
+      stepId: siroWebStep.id,
+      status: 'failed',
+      errorMessage: message
+    });
+    await appendRunEvent({
+      runId: options.runId,
+      stepId: siroWebStep.id,
+      level: 'warn',
+      message: 'No se pudo descargar reporte de SIRO WEB - Transacciones en Linea',
+      payload: {
+        source: options.source,
+        error: message
+      }
+    });
+    result.siroWebTransaccionesLinea = {
+      ok: false,
+      error: message
+    };
+  }
 
   return result;
 }

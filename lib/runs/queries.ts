@@ -1,18 +1,25 @@
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { getUserRole } from '@/lib/runs/repository';
 
-export async function listRunsForUser(userId: string) {
+export async function listRunsForUser(userId: string, dateStr?: string) {
   const supabase = createSupabaseServiceRoleClient();
   const role = await getUserRole(userId);
 
-  const query = supabase
+  let query = supabase
     .from('runs')
     .select('id,user_id,test_definition_key,environment,status,created_at,started_at,ended_at,error_message')
     .order('created_at', { ascending: false })
     .limit(50);
 
   if (role !== 'admin') {
-    query.eq('user_id', userId);
+    query = query.eq('user_id', userId);
+  }
+
+  if (dateStr) {
+    // Add date filter assuming Argentina timezone
+    const startOfDay = new Date(`${dateStr}T00:00:00-03:00`).toISOString();
+    const endOfDay = new Date(`${dateStr}T23:59:59.999-03:00`).toISOString();
+    query = query.gte('created_at', startOfDay).lte('created_at', endOfDay);
   }
 
   const { data, error } = await query;

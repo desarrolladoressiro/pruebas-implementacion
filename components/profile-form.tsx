@@ -54,17 +54,15 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
   }
 
   return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h2 style={{ margin: 0 }}>Perfil Operativo</h2>
-
-      <label>
-        Email
+    <form className="flex-col gap-4 animate-enter" onSubmit={handleSubmit}>
+      <label className="flex-col gap-2">
+        <span style={{ fontWeight: 500, fontSize: 14 }}>Email</span>
         <input className="input" value={form.email ?? ''} disabled />
       </label>
 
       <div className="grid grid-2">
-        <label>
-          Base cliente (8 o 9 digitos)
+        <label className="flex-col gap-2">
+          <span style={{ fontWeight: 500, fontSize: 14 }}>Base cliente (8 o 9 digitos)</span>
           <input
             className="input"
             value={form.base_cliente ?? ''}
@@ -72,8 +70,8 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
           />
         </label>
 
-        <label>
-          Banco preferido
+        <label className="flex-col gap-2">
+          <span style={{ fontWeight: 500, fontSize: 14 }}>Banco preferido</span>
           <select
             className="select"
             value={form.preferred_bank ?? ''}
@@ -90,36 +88,36 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
       </div>
 
       <div className="grid grid-2">
-        <label>
-          DNI
+        <label className="flex-col gap-2">
+          <span style={{ fontWeight: 500, fontSize: 14 }}>DNI</span>
           <input className="input" value={form.dni ?? ''} onChange={(event) => patchField('dni', event.target.value)} />
         </label>
 
-        <label>
-          CBU
+        <label className="flex-col gap-2">
+          <span style={{ fontWeight: 500, fontSize: 14 }}>CBU</span>
           <input className="input" value={form.cbu ?? ''} onChange={(event) => patchField('cbu', event.target.value)} />
         </label>
       </div>
 
-      <label>
-        Alias
+      <label className="flex-col gap-2">
+        <span style={{ fontWeight: 500, fontSize: 14 }}>Alias</span>
         <input className="input" value={form.alias ?? ''} onChange={(event) => patchField('alias', event.target.value)} />
       </label>
 
-      <label>
-        Notas operativas
+      {/* <label className="flex-col gap-2">
+        <span style={{ fontWeight: 500, fontSize: 14 }}>Notas operativas</span>
         <textarea
           className="textarea"
           rows={4}
           value={form.notes ?? ''}
           onChange={(event) => patchField('notes', event.target.value)}
         />
-      </label>
+      </label> */}
 
-      {message ? <div className="badge badge-ok">{message}</div> : null}
-      {error ? <div className="badge badge-err">{error}</div> : null}
+      {message ? <div className="badge badge-ok" style={{ display: 'block' }}>{message}</div> : null}
+      {error ? <div className="badge badge-err" style={{ display: 'block' }}>{error}</div> : null}
 
-      <div>
+      <div style={{ marginTop: 8 }}>
         <button className="btn" type="submit" disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar perfil'}
         </button>

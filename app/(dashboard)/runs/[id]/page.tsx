@@ -23,15 +23,16 @@ export default async function RunDetailPage({
   }
 
   return (
-    <section className="grid" style={{ gap: 16 }}>
-      <h1 style={{ margin: 0 }}>Detalle de Run</h1>
-      <RunLivePanel
-        runId={id}
-        initialRun={detail.run}
-        initialSteps={detail.steps}
-        initialEvents={detail.events}
-        initialArtifacts={detail.artifacts}
-      />
-    </section>
+    <div style={{ height: '100%', overflowY: 'auto', padding: '24px' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: '40px' }}>
+        <RunLivePanel
+          runId={id}
+          initialRun={detail.run}
+          initialSteps={detail.steps}
+          initialEvents={detail.events}
+          initialArtifacts={detail.artifacts}
+        />
+      </div>
+    </div>
   );
 }

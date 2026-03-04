@@ -11,9 +11,15 @@ export default async function ProfilePage() {
   const profile = await getOrCreateProfile(user.id, user.email ?? null);
 
   return (
-    <section className="grid" style={{ gap: 16 }}>
-      <h1 style={{ margin: 0 }}>Perfil</h1>
-      <ProfileForm profile={profile} />
-    </section>
+    <div className="dashboard-layout single" style={{ paddingBottom: '40px' }}>
+      <div className="scrollable-panel" style={{ maxWidth: 800, margin: '0 auto' }}>
+        <div className="scrollable-panel-header">
+          <span style={{ fontSize: '1.25rem' }}>Perfil Operativo</span>
+        </div>
+        <div className="scrollable-panel-body">
+          <ProfileForm profile={profile} />
+        </div>
+      </div>
+    </div>
   );
 }

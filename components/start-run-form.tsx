@@ -62,17 +62,14 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
       router.push(`/runs/${payload.run.id}`);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Error desconocido.');
-    } finally {
-      setSubmitting(false);
+      setSubmitting(false); // only stop if error, otherwise it stays disabled until page unloads
     }
   }
 
   return (
-    <form className="card grid" onSubmit={handleSubmit}>
-      <h2 style={{ margin: 0 }}>Nueva Ejecucion API</h2>
-
-      <label>
-        Definicion de prueba
+    <form className="flex-col gap-4" onSubmit={handleSubmit}>
+      <label className="flex-col gap-2">
+        <span style={{ fontWeight: 500, fontSize: 14 }}>Definición de prueba</span>
         <select
           className="select"
           value={definitionKey}
@@ -86,8 +83,14 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
         </select>
       </label>
 
-      <label>
-        Entorno
+      {selectedDefinition?.description && (
+        <div className="muted" style={{ fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+          💡 {selectedDefinition.description}
+        </div>
+      )}
+
+      <label className="flex-col gap-2">
+        <span style={{ fontWeight: 500, fontSize: 14 }}>Entorno</span>
         <select
           className="select"
           value={environment}
@@ -98,25 +101,25 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
         </select>
       </label>
 
-      <div className="muted" style={{ fontSize: 13 }}>
-        {selectedDefinition?.description}
-      </div>
-
-      <label>
-        Input JSON (se precarga con defaults)
+      <label className="flex-col gap-2">
+        <div className="flex justify-between items-center">
+          <span style={{ fontWeight: 500, fontSize: 14 }}>Input JSON</span>
+          <span className="muted" style={{ fontSize: 12 }}>(Precargado con defaults)</span>
+        </div>
         <textarea
           className="textarea"
-          rows={10}
+          rows={12}
           value={jsonInput}
           onChange={(event) => setJsonInput(event.target.value)}
+          style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13, resize: 'vertical' }}
         />
       </label>
 
-      {error ? <div className="badge badge-err">{error}</div> : null}
+      {error ? <div className="badge badge-err" style={{ display: 'block' }}>{error}</div> : null}
 
-      <div className="row">
-        <button className="btn" type="submit" disabled={submitting || !definitionKey}>
-          {submitting ? 'Iniciando...' : 'Iniciar run'}
+      <div className="row" style={{ marginTop: 8 }}>
+        <button className="btn w-full" type="submit" disabled={submitting || !definitionKey} style={{ padding: '14px 18px', fontSize: 16 }}>
+          {submitting ? 'Iniciando ejecución...' : '▶ Iniciar Ejecución'}
         </button>
       </div>
     </form>

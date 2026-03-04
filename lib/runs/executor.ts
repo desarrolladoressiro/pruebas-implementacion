@@ -357,7 +357,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
         canal: channel,
         paymentUrl,
         // playwright_headless: input.playwright_headless ?? null
-        playwright_headless: false
+        playwright_headless: true
       }
     });
 

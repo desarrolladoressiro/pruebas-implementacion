@@ -570,7 +570,7 @@ export async function simulatePagoInBrowser(
     //     : process.env.NODE_ENV === 'production'
     //       ? env.PLAYWRIGHT_HEADLESS === 'true'
     //       : false,
-    headless: false,
+    headless: true,
     slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
   });
 

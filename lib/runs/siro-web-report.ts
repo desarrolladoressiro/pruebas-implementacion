@@ -300,6 +300,43 @@ async function waitForDownloadResponse(
   }
 }
 
+async function readDownloadedResponseBuffer(page: any, response: any) {
+  try {
+    return Buffer.from(await response.body());
+  } catch {
+    const request = response.request?.();
+    if (!request) {
+      return null;
+    }
+
+    const method = String(request.method?.() ?? 'GET').toUpperCase();
+    const url = String(response.url?.() ?? request.url?.() ?? '');
+    if (!url) {
+      return null;
+    }
+
+    const originalHeaders = (request.headers?.() ?? {}) as Record<string, string>;
+    const headers = Object.fromEntries(
+      Object.entries(originalHeaders).filter(([key]) => {
+        const lower = key.toLowerCase();
+        return lower !== 'content-length' && lower !== 'host';
+      })
+    );
+
+    const postDataBuffer = request.postDataBuffer?.() ?? undefined;
+    const apiResponse = await page.context().request.fetch(url, {
+      method,
+      headers,
+      data: postDataBuffer,
+      timeout: 60_000
+    });
+    if (!apiResponse.ok()) {
+      return null;
+    }
+    return Buffer.from(await apiResponse.body());
+  }
+}
+
 async function connectBrowser(chromium: any, endpoint: string) {
   const lower = endpoint.toLowerCase();
   const timeout = 30_000;
@@ -582,7 +619,20 @@ export async function downloadSiroWebTransaccionesLineaReport(
         parseFilenameFromHeader(disposition)
         ?? responseUrl.split('/').pop()
         ?? `transacciones_linea_${Date.now()}.bin`;
-      const fileBuffer = Buffer.from(await responseFromExcel.body());
+      const fileBuffer = await readDownloadedResponseBuffer(page, responseFromExcel);
+      if (!fileBuffer || fileBuffer.length === 0) {
+        await appendRunEvent({
+          runId: options.runId,
+          stepId: options.stepId,
+          level: 'warn',
+          message: 'SIRO WEB: se detecto respuesta de descarga pero no se pudo leer el body',
+          payload: {
+            responseUrl,
+            contentType: String(headers['content-type'] ?? ''),
+            contentDisposition: disposition
+          }
+        });
+      } else {
       const mimeType = mimeTypeByFilename(suggested);
       const base64 = fileBuffer.toString('base64');
       const dataUrl = `data:${mimeType};base64,${base64}`;
@@ -622,6 +672,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
         mimeType,
         finalUrl: String(page.url?.() ?? '')
       };
+      }
     }
 
     const finalHtml = compactHtmlSnippet(String(await page.content().catch(() => '') ?? ''));

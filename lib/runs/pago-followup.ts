@@ -174,7 +174,8 @@ export async function executePagoFollowupQueries(
     const reportResult = await downloadSiroWebTransaccionesLineaReport({
       runId: options.runId,
       stepId: siroWebStep.id,
-      environment: options.environment
+      environment: options.environment,
+      expectedIdReferenciaOperacion: idReferenciaOperacion ?? null
     });
 
     await finishRunStep({

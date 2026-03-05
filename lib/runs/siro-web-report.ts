@@ -9,6 +9,7 @@ interface DownloadTransaccionesLineaReportOptions {
   runId: string;
   stepId: string;
   environment: TargetEnvironment;
+  expectedIdReferenciaOperacion?: string | null;
 }
 
 interface DownloadedReportResult {
@@ -19,6 +20,9 @@ interface DownloadedReportResult {
   finalUrl?: string;
   pdfFileName?: string;
   xlsFileName?: string;
+  expectedIdReferenciaOperacion?: string | null;
+  idReferenciaOperacionEncontrado?: boolean;
+  idReferenciaOperacionEncontradoEn?: 'page' | 'xls' | 'page_and_xls' | 'none';
 }
 
 function trimToOptional(value: unknown) {
@@ -294,6 +298,25 @@ function compactHtmlSnippet(html: string, maxLength = 3000) {
   return html.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
+function bufferContainsText(buffer: Buffer, text: string) {
+  if (!text) return false;
+  const target = text.toLowerCase();
+  return buffer.toString('utf8').toLowerCase().includes(target)
+    || buffer.toString('latin1').toLowerCase().includes(target);
+}
+
+async function pageContainsTextAnywhere(page: any, text: string) {
+  if (!text) return false;
+  const scopes = listScopes(page);
+  for (const scope of scopes) {
+    const bodyText = await scope.locator('body').innerText().catch(() => '');
+    if (String(bodyText ?? '').toLowerCase().includes(text.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function waitForAnyVisible(
   page: any,
   selectors: string[],
@@ -459,6 +482,7 @@ async function captureReportExportFile({
   runId,
   stepId,
   expected,
+  expectedText,
   trigger,
   timeoutMs
 }: {
@@ -466,6 +490,7 @@ async function captureReportExportFile({
   runId: string;
   stepId: string;
   expected: 'pdf' | 'xls';
+  expectedText?: string;
   trigger: () => Promise<void>;
   timeoutMs: number;
 }) {
@@ -478,10 +503,12 @@ async function captureReportExportFile({
       const fileBuffer = await readFile(tempPath);
       const lower = suggested.toLowerCase();
       if (expected === 'pdf' && lower.endsWith('.pdf')) {
-        return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+        const saved = await persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+        return { ...saved, containsExpectedText: bufferContainsText(fileBuffer, String(expectedText ?? '')) };
       }
       if (expected === 'xls' && (lower.endsWith('.xls') || lower.endsWith('.xlsx'))) {
-        return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+        const saved = await persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+        return { ...saved, containsExpectedText: bufferContainsText(fileBuffer, String(expectedText ?? '')) };
       }
     }
   }
@@ -503,7 +530,8 @@ async function captureReportExportFile({
     return null;
   }
 
-  return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+  const saved = await persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+  return { ...saved, containsExpectedText: bufferContainsText(fileBuffer, String(expectedText ?? '')) };
 }
 
 async function connectBrowser(chromium: any, endpoint: string) {
@@ -539,6 +567,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
   const env = getEnv();
   const credentials = resolveSiroWebCredentials(options.environment);
   const remoteEndpoint = trimToOptional(env.PLAYWRIGHT_WS_ENDPOINT);
+  const expectedIdReferenciaOperacion = trimToOptional(options.expectedIdReferenciaOperacion);
 
   let chromium: any;
   try {
@@ -712,11 +741,16 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '03-reporte-generado'
     });
 
+    const foundInPage = expectedIdReferenciaOperacion
+      ? await pageContainsTextAnywhere(page, expectedIdReferenciaOperacion)
+      : false;
+
     const pdfFile = await captureReportExportFile({
       page,
       runId: options.runId,
       stepId: options.stepId,
       expected: 'pdf',
+      expectedText: expectedIdReferenciaOperacion,
       trigger: async () => {
         await triggerToolbarExportAnywhereById(page, 'ReportToolbar1_Menu');
       },
@@ -748,6 +782,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       runId: options.runId,
       stepId: options.stepId,
       expected: 'xls',
+      expectedText: expectedIdReferenciaOperacion,
       trigger: async () => {
         await triggerToolbarExportAnywhereById(page, 'ReportToolbar2_Menu');
       },
@@ -773,6 +808,38 @@ export async function downloadSiroWebTransaccionesLineaReport(
       });
     }
 
+    const foundInXls = Boolean(xlsFile?.containsExpectedText);
+    const expectedPresent = expectedIdReferenciaOperacion
+      ? foundInPage || foundInXls
+      : undefined;
+    const foundLocation =
+      expectedIdReferenciaOperacion
+        ? (foundInPage && foundInXls
+          ? 'page_and_xls'
+          : foundInPage
+            ? 'page'
+            : foundInXls
+              ? 'xls'
+              : 'none')
+        : undefined;
+
+    if (expectedIdReferenciaOperacion) {
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: expectedPresent ? 'info' : 'warn',
+        message: expectedPresent
+          ? 'SIRO WEB: idReferenciaOperacion encontrado en reporte'
+          : 'SIRO WEB: idReferenciaOperacion NO encontrado en reporte',
+        payload: {
+          expectedIdReferenciaOperacion,
+          foundInPage,
+          foundInXls,
+          foundIn: foundLocation ?? 'none'
+        }
+      });
+    }
+
     return {
       ok: true,
       fileName: pdfFile.fileName,
@@ -780,7 +847,10 @@ export async function downloadSiroWebTransaccionesLineaReport(
       mimeType: pdfFile.mimeType,
       finalUrl: String(page.url?.() ?? ''),
       pdfFileName: pdfFile.fileName,
-      xlsFileName: xlsFile?.fileName
+      xlsFileName: xlsFile?.fileName,
+      expectedIdReferenciaOperacion: expectedIdReferenciaOperacion ?? null,
+      idReferenciaOperacionEncontrado: expectedPresent,
+      idReferenciaOperacionEncontradoEn: foundLocation
     };
 
     const finalHtml = compactHtmlSnippet(String(await page.content().catch(() => '') ?? ''));

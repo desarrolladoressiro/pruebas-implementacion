@@ -165,6 +165,32 @@ async function hasAnyVisible(page: any, selectors: string[]) {
   return false;
 }
 
+function listScopes(page: any) {
+  return [page, ...(page.frames?.() ?? [])];
+}
+
+async function findScopeWithAnyVisible(page: any, selectors: string[]) {
+  const scopes = listScopes(page);
+  for (const scope of scopes) {
+    const visible = await hasAnyVisible(scope, selectors);
+    if (visible) {
+      return scope;
+    }
+  }
+  return null;
+}
+
+async function clickFirstAnywhere(page: any, selectors: string[]) {
+  const scopes = listScopes(page);
+  for (const scope of scopes) {
+    const clicked = await clickFirst(scope, selectors);
+    if (clicked) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function compactHtmlSnippet(html: string, maxLength = 3000) {
   return html.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -176,13 +202,13 @@ async function waitForAnyVisible(
 ) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const visible = await hasAnyVisible(page, selectors);
-    if (visible) {
-      return true;
+    const scope = await findScopeWithAnyVisible(page, selectors);
+    if (scope) {
+      return scope;
     }
     await page.waitForTimeout(250);
   }
-  return false;
+  return null;
 }
 
 function maskEndpoint(endpoint: string) {
@@ -302,12 +328,13 @@ export async function downloadSiroWebTransaccionesLineaReport(
     const passSelectors = ['#txtContrasena', 'input[name="txtContrasena"]', 'input[type="password"]'];
     const submitSelectors = ['#btnAceptar', 'input[id*="Aceptar"]', 'button:has-text("Aceptar")', 'input[type="submit"]'];
     const reportSelectors = ['#cboTipoListado'];
-    const resolvedAnyState = await waitForAnyVisible(page, [...userSelectors, ...reportSelectors], 30_000);
+    const resolvedAnyStateScope = await waitForAnyVisible(page, [...userSelectors, ...reportSelectors], 30_000);
 
-    if (!resolvedAnyState) {
+    if (!resolvedAnyStateScope) {
       const currentUrl = String(page.url?.() ?? '');
       const pageTitle = await page.title().catch(() => '');
       const html = await page.content().catch(() => '');
+      const frameUrls = (page.frames?.() ?? []).map((frame: any) => String(frame.url?.() ?? ''));
       await appendRunEvent({
         runId: options.runId,
         stepId: options.stepId,
@@ -316,22 +343,23 @@ export async function downloadSiroWebTransaccionesLineaReport(
         payload: {
           currentUrl,
           pageTitle,
-          htmlSnippet: compactHtmlSnippet(String(html ?? ''))
+          htmlSnippet: compactHtmlSnippet(String(html ?? '')),
+          frameUrls
         }
       });
       throw new Error('No se detecto pantalla de login ni pantalla de reporte de SIRO WEB.');
     }
 
-    const loginVisible = await hasAnyVisible(page, userSelectors);
+    const loginVisible = await hasAnyVisible(resolvedAnyStateScope, userSelectors);
 
     if (loginVisible) {
-      const userFilled = await fillFirst(page, userSelectors, credentials.user);
-      const passFilled = await fillFirst(page, passSelectors, credentials.password);
+      const userFilled = await fillFirst(resolvedAnyStateScope, userSelectors, credentials.user);
+      const passFilled = await fillFirst(resolvedAnyStateScope, passSelectors, credentials.password);
       if (!userFilled || !passFilled) {
         throw new Error('No se pudieron completar los campos de login de SIRO WEB (usuario/contrasena).');
       }
 
-      const clicked = await clickFirst(page, submitSelectors);
+      const clicked = await clickFirst(resolvedAnyStateScope, submitSelectors);
       if (!clicked) {
         throw new Error('No se encontro boton para enviar login de SIRO WEB.');
       }
@@ -360,8 +388,27 @@ export async function downloadSiroWebTransaccionesLineaReport(
       waitUntil: 'domcontentloaded',
       timeout: 60_000
     });
-    await page.waitForSelector('#cboTipoListado', { timeout: 30_000 });
-    await page.selectOption('#cboTipoListado', 'XLISTPEND');
+    const reportScope = await waitForAnyVisible(page, ['#cboTipoListado'], 30_000);
+    if (!reportScope) {
+      const currentUrl = String(page.url?.() ?? '');
+      const pageTitle = await page.title().catch(() => '');
+      const html = await page.content().catch(() => '');
+      const frameUrls = (page.frames?.() ?? []).map((frame: any) => String(frame.url?.() ?? ''));
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'error',
+        message: 'SIRO WEB: no se detecto selector de reporte (#cboTipoListado)',
+        payload: {
+          currentUrl,
+          pageTitle,
+          htmlSnippet: compactHtmlSnippet(String(html ?? '')),
+          frameUrls
+        }
+      });
+      throw new Error('No se detecto selector de reporte (#cboTipoListado).');
+    }
+    await reportScope.selectOption('#cboTipoListado', 'XLISTPEND');
     await page.waitForTimeout(2_000);
     await saveScreenshotArtifact({
       page,
@@ -370,7 +417,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '02-reporte-transacciones-linea-selected'
     });
 
-    await clickFirst(page, ['#BtnExcel', '#btnAceptar']);
+    await clickFirstAnywhere(page, ['#BtnExcel', '#btnAceptar']);
     await page.waitForTimeout(2_500);
     await saveScreenshotArtifact({
       page,
@@ -383,14 +430,14 @@ export async function downloadSiroWebTransaccionesLineaReport(
       (await waitForDownload(
         page,
         async () => {
-          await clickFirst(page, ['#ReportToolbar1_Menu_DXI7_I', '#ReportToolbar1_Menu_DXI7_Img']);
+          await clickFirstAnywhere(page, ['#ReportToolbar1_Menu_DXI7_I', '#ReportToolbar1_Menu_DXI7_Img']);
         },
         45_000
       )) ??
       (await waitForDownload(
         page,
         async () => {
-          await clickFirst(page, ['#BtnExcel']);
+          await clickFirstAnywhere(page, ['#BtnExcel']);
         },
         20_000
       ));

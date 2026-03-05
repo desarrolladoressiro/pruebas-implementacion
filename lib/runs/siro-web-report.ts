@@ -79,23 +79,42 @@ async function saveScreenshotArtifact({
   stepId: string;
   name: string;
 }) {
-  const bytes = await page.screenshot({ fullPage: true, type: 'png' });
-  const base64 = Buffer.from(bytes).toString('base64');
-  const storagePath = `inline/${runId}/${Date.now()}_siro_web_${name}.png`;
+  try {
+    const bytes = await page.screenshot({
+      fullPage: true,
+      type: 'png',
+      timeout: 60_000,
+      animations: 'disabled'
+    });
+    const base64 = Buffer.from(bytes).toString('base64');
+    const storagePath = `inline/${runId}/${Date.now()}_siro_web_${name}.png`;
 
-  await addRunArtifact({
-    runId,
-    stepId,
-    artifactType: 'screenshot',
-    storagePath,
-    metadata: {
-      name,
-      source: 'siro_web_reportes',
-      page_url: String(page.url?.() ?? ''),
-      mime_type: 'image/png',
-      data_url: `data:image/png;base64,${base64}`
-    }
-  });
+    await addRunArtifact({
+      runId,
+      stepId,
+      artifactType: 'screenshot',
+      storagePath,
+      metadata: {
+        name,
+        source: 'siro_web_reportes',
+        page_url: String(page.url?.() ?? ''),
+        mime_type: 'image/png',
+        data_url: `data:image/png;base64,${base64}`
+      }
+    });
+  } catch (error) {
+    await appendRunEvent({
+      runId,
+      stepId,
+      level: 'warn',
+      message: 'SIRO WEB: no se pudo guardar screenshot (se continua ejecucion)',
+      payload: {
+        name,
+        error: error instanceof Error ? error.message : String(error),
+        page_url: String(page.url?.() ?? '')
+      }
+    }).catch(() => undefined);
+  }
 }
 
 async function waitForDownload(

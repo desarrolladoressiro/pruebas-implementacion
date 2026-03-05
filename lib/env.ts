@@ -25,6 +25,7 @@ const serverSchema = z.object({
   SIRO_ADMIN_CUIT: z.string().min(1),
   PLAYWRIGHT_HEADLESS: z.enum(['true', 'false']).optional().default('true'),
   PLAYWRIGHT_SLOW_MO_MS: z.coerce.number().optional().default(0),
+  PLAYWRIGHT_WS_ENDPOINT: z.string().optional(),
   TEST_PAYER_EMAIL: z.string().email().optional().default('qa@example.com'),
   TEST_PAYER_DNI: z.string().optional().default('30111222'),
   TEST_PAYER_FIRST_NAME: z.string().optional().default('NOMBRE'),

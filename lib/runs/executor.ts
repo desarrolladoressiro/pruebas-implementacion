@@ -26,6 +26,7 @@ interface RunRow {
   test_definition_key: string;
   environment: TargetEnvironment;
   input_json?: unknown;
+  output_json?: unknown;
 }
 
 function asRecord(input: unknown): Record<string, any> {
@@ -271,6 +272,79 @@ function resolveAdhesionNumber({
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isSiroPagosRun(testDefinitionKey: string) {
+  return testDefinitionKey.startsWith('siro_pagos_') || testDefinitionKey.includes('siro_pagos');
+}
+
+async function executeSiroPagosPostWebhookQueuedFollowup(run: RunRow) {
+  const output = asRecord(run.output_json);
+  const pending = asRecord(output.followup_webhook_pending);
+  if (pending.pending !== true) {
+    return false;
+  }
+
+  const environment =
+    (toOptionalString(pending.environment) as TargetEnvironment | undefined)
+    ?? run.environment
+    ?? 'homologacion';
+  const source = toStringValue(pending.source, 'post_webhook') as 'post_webhook';
+  const hash = toOptionalString(pending.hash);
+  const idResultado = toOptionalString(pending.idResultado);
+  const idReferenciaOperacion = toOptionalString(pending.idReferenciaOperacion);
+  const webhookKind = toStringValue(pending.webhook_kind, 'ok');
+
+  await appendRunEvent({
+    runId: run.id,
+    level: 'info',
+    message: 'Procesando seguimiento post-webhook desde worker',
+    payload: {
+      environment,
+      hash: hash ?? null,
+      idResultado: idResultado ?? null,
+      idReferenciaOperacion: idReferenciaOperacion ?? null
+    }
+  });
+
+  let followupWebhook: Record<string, any> | null = null;
+
+  try {
+    followupWebhook = await executePagoFollowupQueries({
+      runId: run.id,
+      environment,
+      source,
+      hash,
+      idResultado,
+      idReferenciaOperacion
+    });
+  } catch (error) {
+    await appendRunEvent({
+      runId: run.id,
+      level: 'error',
+      message: 'Error en seguimiento post-webhook procesado por worker',
+      payload: {
+        error: error instanceof Error ? error.message : String(error),
+        hash: hash ?? null,
+        idResultado: idResultado ?? null,
+        idReferenciaOperacion: idReferenciaOperacion ?? null
+      }
+    });
+
+    followupWebhook = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  const mergedOutput: JsonObject = {
+    ...output,
+    followup_webhook: followupWebhook,
+    followup_webhook_pending: null
+  };
+
+  await updateRunStatus(run.id, webhookKind === 'error' ? 'failed' : 'completed', mergedOutput);
+  return true;
 }
 
 async function executeSiroPagosCrearIntencion(run: RunRow) {
@@ -1099,6 +1173,18 @@ export async function executeRunByDefinition(run: RunRow) {
   });
 
   try {
+    if (isSiroPagosRun(run.test_definition_key)) {
+      const processedQueuedFollowup = await executeSiroPagosPostWebhookQueuedFollowup(run);
+      if (processedQueuedFollowup) {
+        await appendRunEvent({
+          runId: run.id,
+          level: 'info',
+          message: 'Seguimiento post-webhook finalizado'
+        });
+        return;
+      }
+    }
+
     switch (run.test_definition_key) {
       case 'siro_pagos_crear_intencion':
         await executeSiroPagosCrearIntencion(run);

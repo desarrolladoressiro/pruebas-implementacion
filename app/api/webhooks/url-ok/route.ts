@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { appendRunEvent, finishRunStep, updateRunStatus } from '@/lib/runs/repository';
-import { executePagoFollowupQueries } from '@/lib/runs/pago-followup';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { TargetEnvironment } from '@/lib/types';
 
@@ -128,6 +127,7 @@ async function processWebhook(request: Request, body?: any) {
     });
 
     let followupWebhook: Record<string, any> | null = null;
+    let followupWebhookPending: Record<string, any> | null = null;
     const runOutput = asRecord(runRow?.output_json);
     const runInput = asRecord(runRow?.input_json);
 
@@ -183,48 +183,35 @@ async function processWebhook(request: Request, body?: any) {
         }
       }
 
-      try {
-        const fallbackEnvironment =
-          (pickFirstValue([
-            runRow?.environment,
-            runOutput?.environment,
-            runInput?.environment
-          ]) as TargetEnvironment | undefined) ?? 'homologacion';
+      const fallbackEnvironment =
+        (pickFirstValue([
+          runRow?.environment,
+          runOutput?.environment,
+          runInput?.environment
+        ]) as TargetEnvironment | undefined) ?? 'homologacion';
 
-        await appendRunEvent({
-          runId,
-          level: 'info',
-          message: 'Iniciando seguimiento post-webhook (API + SIRO WEB)',
-          payload: {
-            testDefinitionKey: testKey,
-            environment: fallbackEnvironment,
-            hash: resolvedHash ?? null,
-            idResultado: idResultado ?? null,
-            idReferenciaOperacion: resolvedIdReferencia ?? null
-          }
-        });
+      followupWebhookPending = {
+        pending: true,
+        source: 'post_webhook',
+        webhook_kind: kind === 'error' ? 'error' : 'ok',
+        environment: fallbackEnvironment,
+        hash: resolvedHash ?? null,
+        idResultado: idResultado ?? null,
+        idReferenciaOperacion: resolvedIdReferencia ?? null
+      };
 
-        followupWebhook = await executePagoFollowupQueries({
-          runId,
+      await appendRunEvent({
+        runId,
+        level: 'info',
+        message: 'Seguimiento post-webhook encolado para worker (API + SIRO WEB)',
+        payload: {
+          testDefinitionKey: testKey,
           environment: fallbackEnvironment,
-          source: 'post_webhook',
-          hash: resolvedHash,
-          idResultado,
-          idReferenciaOperacion: resolvedIdReferencia
-        });
-      } catch (error) {
-        await appendRunEvent({
-          runId,
-          level: 'error',
-          message: 'Error en consultas de seguimiento post-webhook',
-          payload: {
-            error: error instanceof Error ? error.message : String(error),
-            hash: resolvedHash ?? null,
-            idResultado: idResultado ?? null,
-            idReferenciaOperacion: resolvedIdReferencia ?? null
-          }
-        });
-      }
+          hash: resolvedHash ?? null,
+          idResultado: idResultado ?? null,
+          idReferenciaOperacion: resolvedIdReferencia ?? null
+        }
+      });
     }
 
     await finalizeAwaitingSteps(runId, queryParams, body, kind);
@@ -233,10 +220,13 @@ async function processWebhook(request: Request, body?: any) {
       ...runOutput,
       webhook: queryParams,
       body: body ?? {},
-      followup_webhook: followupWebhook
+      followup_webhook: followupWebhook,
+      followup_webhook_pending: followupWebhookPending
     };
 
-    if (kind === 'error') {
+    if (followupWebhookPending) {
+      await updateRunStatus(runId, 'queued', mergedOutput);
+    } else if (kind === 'error') {
       await updateRunStatus(runId, 'failed', mergedOutput);
     } else {
       await updateRunStatus(runId, 'completed', mergedOutput);

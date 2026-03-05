@@ -132,11 +132,48 @@ async function clickFirst(page: any, selectors: string[]) {
   return false;
 }
 
+function maskEndpoint(endpoint: string) {
+  try {
+    const parsed = new URL(endpoint);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return endpoint.slice(0, 32);
+  }
+}
+
+async function connectBrowser(chromium: any, endpoint: string) {
+  const lower = endpoint.toLowerCase();
+  const timeout = 30_000;
+
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    const browser = await chromium.connectOverCDP(endpoint, { timeout });
+    return { browser, mode: 'remote_cdp' as const };
+  }
+
+  try {
+    const browser = await chromium.connect(endpoint, { timeout });
+    return { browser, mode: 'remote_playwright' as const };
+  } catch (connectError) {
+    try {
+      const browser = await chromium.connectOverCDP(endpoint, { timeout });
+      return { browser, mode: 'remote_cdp' as const };
+    } catch (cdpError) {
+      const connectMessage = connectError instanceof Error ? connectError.message : String(connectError);
+      const cdpMessage = cdpError instanceof Error ? cdpError.message : String(cdpError);
+      throw new Error(
+        `No se pudo conectar al navegador remoto (${maskEndpoint(endpoint)}). `
+        + `connect: ${connectMessage} | connectOverCDP: ${cdpMessage}`
+      );
+    }
+  }
+}
+
 export async function downloadSiroWebTransaccionesLineaReport(
   options: DownloadTransaccionesLineaReportOptions
 ): Promise<DownloadedReportResult> {
   const env = getEnv();
   const credentials = resolveSiroWebCredentials(options.environment);
+  const remoteEndpoint = trimToOptional(env.PLAYWRIGHT_WS_ENDPOINT);
 
   let chromium: any;
   try {
@@ -145,15 +182,45 @@ export async function downloadSiroWebTransaccionesLineaReport(
     throw new Error('No se encontro la dependencia "playwright". Instala el paquete antes de ejecutar SIRO WEB.');
   }
 
-  const browser = await chromium.launch({
-    headless: env.PLAYWRIGHT_HEADLESS === 'true',
-    slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
-  });
-  const context = await browser.newContext({
-    acceptDownloads: true,
-    viewport: { width: 1440, height: 1024 }
-  });
-  const page = await context.newPage();
+  let browser: any;
+  let context: any;
+  let page: any;
+  let closeContext = true;
+  let executionMode = 'local_launch';
+
+  if (remoteEndpoint) {
+    const connected = await connectBrowser(chromium, remoteEndpoint);
+    browser = connected.browser;
+    executionMode = connected.mode;
+
+    if (connected.mode === 'remote_cdp') {
+      context = browser.contexts?.()[0];
+      if (!context) {
+        context = await browser.newContext({
+          acceptDownloads: true,
+          viewport: { width: 1440, height: 1024 }
+        });
+      } else {
+        closeContext = false;
+      }
+    } else {
+      context = await browser.newContext({
+        acceptDownloads: true,
+        viewport: { width: 1440, height: 1024 }
+      });
+    }
+  } else {
+    browser = await chromium.launch({
+      headless: env.PLAYWRIGHT_HEADLESS === 'true',
+      slowMo: Number(env.PLAYWRIGHT_SLOW_MO_MS || 0)
+    });
+    context = await browser.newContext({
+      acceptDownloads: true,
+      viewport: { width: 1440, height: 1024 }
+    });
+  }
+
+  page = await context.newPage();
 
   try {
     await appendRunEvent({
@@ -163,7 +230,9 @@ export async function downloadSiroWebTransaccionesLineaReport(
       message: 'SIRO WEB: inicio de sesion y navegacion a Reportes > Transacciones en Linea',
       payload: {
         baseUrl: credentials.url,
-        environment: options.environment
+        environment: options.environment,
+        executionMode,
+        remoteBrowserEndpoint: remoteEndpoint ? maskEndpoint(remoteEndpoint) : null
       }
     });
 
@@ -276,7 +345,11 @@ export async function downloadSiroWebTransaccionesLineaReport(
       finalUrl: String(page.url?.() ?? '')
     };
   } finally {
-    await context.close().catch(() => undefined);
+    if (closeContext) {
+      await context.close().catch(() => undefined);
+    } else {
+      await page.close().catch(() => undefined);
+    }
     await browser.close().catch(() => undefined);
   }
 }

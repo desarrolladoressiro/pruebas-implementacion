@@ -132,6 +132,59 @@ async function clickFirst(page: any, selectors: string[]) {
   return false;
 }
 
+async function fillFirst(page: any, selectors: string[], value: string) {
+  for (const selector of selectors) {
+    const locator = page.locator(selector);
+    const count = await locator.count();
+    for (let index = 0; index < count; index += 1) {
+      const target = locator.nth(index);
+      const visible = await target.isVisible().catch(() => false);
+      const enabled = await target.isEnabled().catch(() => false);
+      if (!visible || !enabled) {
+        continue;
+      }
+      await target.scrollIntoViewIfNeeded().catch(() => undefined);
+      await target.fill(value, { timeout: 10_000 });
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hasAnyVisible(page: any, selectors: string[]) {
+  for (const selector of selectors) {
+    const locator = page.locator(selector);
+    const count = await locator.count();
+    for (let index = 0; index < count; index += 1) {
+      const visible = await locator.nth(index).isVisible().catch(() => false);
+      if (visible) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function compactHtmlSnippet(html: string, maxLength = 3000) {
+  return html.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+async function waitForAnyVisible(
+  page: any,
+  selectors: string[],
+  timeoutMs: number
+) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const visible = await hasAnyVisible(page, selectors);
+    if (visible) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  return false;
+}
+
 function maskEndpoint(endpoint: string) {
   try {
     const parsed = new URL(endpoint);
@@ -245,19 +298,63 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '00-login'
     });
 
-    await page.locator('#txtUsuario').first().fill(credentials.user);
-    await page.locator('#txtContrasena').first().fill(credentials.password);
-    await Promise.all([
-      page.waitForLoadState('domcontentloaded', { timeout: 60_000 }).catch(() => undefined),
-      page.locator('#btnAceptar').first().click({ timeout: 10_000 })
-    ]);
-    await page.waitForTimeout(1_000);
-    await saveScreenshotArtifact({
-      page,
-      runId: options.runId,
-      stepId: options.stepId,
-      name: '01-post-login'
-    });
+    const userSelectors = ['#txtUsuario', 'input[name="txtUsuario"]', 'input[id*="Usuario"]', 'input[name*="Usuario"]'];
+    const passSelectors = ['#txtContrasena', 'input[name="txtContrasena"]', 'input[type="password"]'];
+    const submitSelectors = ['#btnAceptar', 'input[id*="Aceptar"]', 'button:has-text("Aceptar")', 'input[type="submit"]'];
+    const reportSelectors = ['#cboTipoListado'];
+    const resolvedAnyState = await waitForAnyVisible(page, [...userSelectors, ...reportSelectors], 30_000);
+
+    if (!resolvedAnyState) {
+      const currentUrl = String(page.url?.() ?? '');
+      const pageTitle = await page.title().catch(() => '');
+      const html = await page.content().catch(() => '');
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'error',
+        message: 'SIRO WEB: no se detecto pantalla de login ni de reporte',
+        payload: {
+          currentUrl,
+          pageTitle,
+          htmlSnippet: compactHtmlSnippet(String(html ?? ''))
+        }
+      });
+      throw new Error('No se detecto pantalla de login ni pantalla de reporte de SIRO WEB.');
+    }
+
+    const loginVisible = await hasAnyVisible(page, userSelectors);
+
+    if (loginVisible) {
+      const userFilled = await fillFirst(page, userSelectors, credentials.user);
+      const passFilled = await fillFirst(page, passSelectors, credentials.password);
+      if (!userFilled || !passFilled) {
+        throw new Error('No se pudieron completar los campos de login de SIRO WEB (usuario/contrasena).');
+      }
+
+      const clicked = await clickFirst(page, submitSelectors);
+      if (!clicked) {
+        throw new Error('No se encontro boton para enviar login de SIRO WEB.');
+      }
+
+      await page.waitForLoadState('domcontentloaded', { timeout: 60_000 }).catch(() => undefined);
+      await page.waitForTimeout(1_000);
+      await saveScreenshotArtifact({
+        page,
+        runId: options.runId,
+        stepId: options.stepId,
+        name: '01-post-login'
+      });
+    } else {
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'warn',
+        message: 'SIRO WEB: no se detecto formulario de login; se continua directo al reporte',
+        payload: {
+          currentUrl: String(page.url?.() ?? '')
+        }
+      });
+    }
 
     await page.goto(new URL('frmConsultarMovimientosSiro.aspx', credentials.url).toString(), {
       waitUntil: 'domcontentloaded',

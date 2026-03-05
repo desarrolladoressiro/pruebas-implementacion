@@ -4,8 +4,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_crear_intencion',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - Crear Intencion (/api/Pago)',
-    description: 'Genera una intencion de pago y deja el flujo esperando callback URL_OK.',
+    name: 'Pagos SIRO - Crear intencion de pago',
+    description: 'Crea una intencion de pago y espera la confirmacion del cobro.',
     executor_code: 'siro_pagos_crear_intencion',
     enabled: true,
     default_input: {
@@ -24,8 +24,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_consulta_intencion',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - Consulta (/api/Pago/Consulta)',
-    description: 'Consulta intenciones por idReferenciaOperacion y rango de fechas.',
+    name: 'Pagos SIRO - Consultar intenciones',
+    description: 'Busca intenciones de pago por referencia y fechas.',
     executor_code: 'siro_pagos_consulta_intencion',
     enabled: true,
     default_input: {}
@@ -33,8 +33,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_string_qr',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - String QR (/api/Pago/StringQR)',
-    description: 'Crea intencion QR dinamico y devuelve string para generar imagen.',
+    name: 'Pagos SIRO - Generar QR dinamico',
+    description: 'Genera un codigo QR dinamico para cobrar.',
     executor_code: 'siro_pagos_string_qr',
     enabled: true,
     default_input: {
@@ -45,8 +45,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_string_qr_offline',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - String QR Offline',
-    description: 'Genera string QR offline con vencimientos e importes.',
+    name: 'Pagos SIRO - Generar QR offline',
+    description: 'Genera un codigo QR offline con importes y vencimientos.',
     executor_code: 'siro_pagos_string_qr_offline',
     enabled: true,
     default_input: {
@@ -58,8 +58,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_qr_estatico',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - QR Estatico (String + Peticion)',
-    description: 'Genera terminal QR estatico y crea peticion de cobro.',
+    name: 'Pagos SIRO - Cobro con QR estatico',
+    description: 'Prepara un QR estatico y crea la solicitud de cobro.',
     executor_code: 'siro_pagos_qr_estatico',
     enabled: true,
     default_input: {
@@ -69,8 +69,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_pagos_comprobante',
     domain: 'api_siro_pagos',
-    name: 'SIRO Pagos - Comprobante (/api/Pago/Comprobante)',
-    description: 'Genera intencion de pago sobre comprobante existente.',
+    name: 'Pagos SIRO - Pago por comprobante',
+    description: 'Genera una intencion de pago usando un comprobante existente.',
     executor_code: 'siro_pagos_comprobante',
     enabled: true,
     default_input: {
@@ -80,8 +80,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_pagos_upload',
     domain: 'api_siro',
-    name: 'API SIRO - Subir Base (/siro/Pagos)',
-    description: 'Sube base de deuda y obtiene nro_transaccion.',
+    name: 'API SIRO - Cargar base de pagos',
+    description: 'Sube una base de pagos y devuelve el numero de transaccion.',
     executor_code: 'siro_api_pagos_upload',
     enabled: true,
     default_input: {
@@ -96,8 +96,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_pagos_estado_transaccion',
     domain: 'api_siro',
-    name: 'API SIRO - Estado Transaccion (/siro/Pagos/{nro_transaccion})',
-    description: 'Consulta estado de procesamiento de base de deuda.',
+    name: 'API SIRO - Consultar estado de carga',
+    description: 'Consulta el estado de procesamiento de una carga.',
     executor_code: 'siro_api_pagos_estado_transaccion',
     enabled: true,
     default_input: {
@@ -108,8 +108,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_pagos_consulta',
     domain: 'api_siro',
-    name: 'API SIRO - Consulta Bases (/siro/Pago/Consulta)',
-    description: 'Consulta bases en rango de fechas.',
+    name: 'API SIRO - Consultar bases',
+    description: 'Consulta bases cargadas dentro de un rango de fechas.',
     executor_code: 'siro_api_pagos_consulta',
     enabled: true,
     default_input: {
@@ -119,8 +119,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_listados_proceso',
     domain: 'api_siro',
-    name: 'API SIRO - Listados Proceso',
-    description: 'Consulta rendicion de cobranzas por periodo.',
+    name: 'API SIRO - Ver listados de proceso',
+    description: 'Consulta listados de cobranzas por periodo.',
     executor_code: 'siro_api_listados_proceso',
     enabled: true,
     default_input: {}
@@ -128,7 +128,7 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_admin_convenios',
     domain: 'api_siro',
-    name: 'API SIRO - Administradores y Convenios',
+    name: 'API SIRO - Consultar administradores y convenios',
     description: 'Consulta administradores y convenios habilitados.',
     executor_code: 'siro_api_admin_convenios',
     enabled: true,
@@ -137,8 +137,8 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
   {
     key: 'siro_api_adhesiones_ciclo',
     domain: 'api_siro',
-    name: 'API SIRO - Ciclo de Adhesiones',
-    description: 'Alta, consulta, vigentes/bajas, modificacion y desactivacion.',
+    name: 'API SIRO - Ciclo de adhesiones',
+    description: 'Ejecuta alta, consulta, modificacion, desactivacion y bajas de adhesiones.',
     executor_code: 'siro_api_adhesiones_ciclo',
     enabled: true,
     default_input: {

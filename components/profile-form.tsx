@@ -114,8 +114,8 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
         />
       </label> */}
 
-      {message ? <div className="badge badge-ok" style={{ display: 'block' }}>{message}</div> : null}
-      {error ? <div className="badge badge-err" style={{ display: 'block' }}>{error}</div> : null}
+      {message && <div style={{ marginTop: 8 }}><div className="badge badge-ok" style={{ width: '100%', height: 'auto', padding: '10px' }}>{message}</div></div>}
+      {error && <div style={{ marginTop: 8 }}><div className="badge badge-err" style={{ width: '100%', height: 'auto', padding: '10px' }}>{error}</div></div>}
 
       <div style={{ marginTop: 8 }}>
         <button className="btn" type="submit" disabled={saving}>

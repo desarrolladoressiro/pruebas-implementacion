@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getDefinitionDisplayName } from '@/lib/runs/display';
 
 interface StartRunFormProps {
   definitions: Array<{
@@ -77,7 +78,7 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
         >
           {definitions.map((definition) => (
             <option key={definition.key} value={definition.key}>
-              [{definition.domain}] {definition.name}
+              {getDefinitionDisplayName(definition.key)}
             </option>
           ))}
         </select>

@@ -56,7 +56,7 @@ export async function createRun(input: CreateRunInput) {
   await appendRunEvent({
     runId: run.id,
     level: 'info',
-    message: 'Run encolada para ejecucion',
+    message: 'Ejecucion en cola para iniciar',
     payload: {
       testDefinitionKey: definition.key,
       environment: input.environment

@@ -6,6 +6,7 @@ import { listRunsForUser } from '@/lib/runs/queries';
 import { StartRunForm } from '@/components/start-run-form';
 import { RunStatusPill } from '@/components/runs/run-status-pill';
 import { formatDateTimeAr } from '@/lib/datetime';
+import { getDefinitionDisplayName } from '@/lib/runs/display';
 
 export default async function DashboardPage({
   searchParams
@@ -78,12 +79,12 @@ export default async function DashboardPage({
                     <div className="muted" style={{ fontSize: '12px' }}>{formatDateTimeAr(run.created_at).split(',')[1]}</div>
                   </td>
                   <td>
-                    <span className="badge" style={{ background: 'var(--bg-soft)', color: 'var(--text)' }}>
-                      {String(run.test_definition_key)}
+                    <span className="badge badge-soft" style={{ maxWidth: '300px', textAlign: 'left', justifyContent: 'flex-start' }}>
+                      {getDefinitionDisplayName(String(run.test_definition_key))}
                     </span>
                   </td>
                   <td>
-                    <span className="badge" style={{ background: 'rgba(243, 172, 51, 0.1)', color: '#b47100' }}>
+                    <span className="badge badge-env">
                       {String(run.environment)}
                     </span>
                   </td>
@@ -91,8 +92,8 @@ export default async function DashboardPage({
                     <RunStatusPill status={String(run.status)} />
                   </td>
                   <td>
-                    <Link href={`/runs/${run.id}`} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                      Ver detalle
+                    <Link href={`/runs/${run.id}`} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px', minWidth: '70px' }}>
+                      Detalle
                     </Link>
                   </td>
                 </tr>

@@ -119,7 +119,7 @@ async function processWebhook(request: Request, body?: any) {
     await appendRunEvent({
       runId,
       level: kind === 'error' ? 'error' : 'info',
-      message: 'Webhook URL_OK recibido',
+      message: 'Notificacion de pago recibida',
       payload: {
         query: queryParams,
         body: body ?? {}
@@ -203,7 +203,7 @@ async function processWebhook(request: Request, body?: any) {
       await appendRunEvent({
         runId,
         level: 'info',
-        message: 'Seguimiento post-webhook encolado para worker (API + SIRO WEB)',
+        message: 'Verificacion posterior al pago en cola',
         payload: {
           testDefinitionKey: testKey,
           environment: fallbackEnvironment,

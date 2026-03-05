@@ -36,13 +36,13 @@ function buildStepCode(prefix: 'hash_resultado' | 'consulta', source: FollowupSo
 }
 
 function buildStepName(prefix: 'hash_resultado' | 'consulta', source: FollowupSource) {
-  const suffix = source === 'post_webhook' ? 'despues de webhook' : 'despues de navegador';
+  const suffix = source === 'post_webhook' ? 'despues de la notificacion' : 'despues del flujo web';
 
   if (prefix === 'hash_resultado') {
-    return `Consultar /api/Pago/{hash}/{id_resultado} (${suffix})`;
+    return `Verificar estado del pago (${suffix})`;
   }
 
-  return `Consultar /api/Pago/Consulta por idReferenciaOperacion (${suffix})`;
+  return `Consultar pago por referencia (${suffix})`;
 }
 
 async function nextSequenceForRun(runId: string) {
@@ -101,7 +101,7 @@ export async function executePagoFollowupQueries(
     await appendRunEvent({
       runId: options.runId,
       level: 'warn',
-      message: 'No se pudo consultar /api/Pago/{hash}/{id_resultado}: falta hash o id_resultado',
+      message: 'No se pudo verificar el estado del pago: faltan datos de referencia',
       payload: {
         source: options.source,
         hash: hash ?? null,
@@ -137,7 +137,7 @@ export async function executePagoFollowupQueries(
     await appendRunEvent({
       runId: options.runId,
       level: 'warn',
-      message: 'No se pudo consultar /api/Pago/Consulta: falta idReferenciaOperacion',
+      message: 'No se pudo consultar el pago por referencia: falta el identificador',
       payload: {
         source: options.source
       }
@@ -147,7 +147,7 @@ export async function executePagoFollowupQueries(
   await appendRunEvent({
     runId: options.runId,
     level: 'info',
-    message: 'Consultas de seguimiento de intencion de pago completadas',
+    message: 'Verificaciones posteriores del pago finalizadas',
     payload: {
       source: options.source,
       hash: hash ?? null,
@@ -161,8 +161,8 @@ export async function executePagoFollowupQueries(
     stepCode: options.source === 'post_webhook' ? 'siro_web_xlistpend_webhook' : 'siro_web_xlistpend_browser',
     stepName:
       options.source === 'post_webhook'
-        ? 'SIRO WEB - Reporte Transacciones en Linea (despues de webhook)'
-        : 'SIRO WEB - Reporte Transacciones en Linea (despues de navegador)',
+        ? 'Revisar transacciones en SIRO WEB (notificacion)'
+        : 'Revisar transacciones en SIRO WEB (flujo web)',
     sequence,
     requestJson: {
       reporte: 'XLISTPEND',
@@ -195,7 +195,7 @@ export async function executePagoFollowupQueries(
       runId: options.runId,
       stepId: siroWebStep.id,
       level: 'warn',
-      message: 'No se pudo descargar reporte de SIRO WEB - Transacciones en Linea',
+      message: 'No se pudo descargar el reporte de transacciones de SIRO WEB',
       payload: {
         source: options.source,
         error: message

@@ -621,7 +621,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       runId: options.runId,
       stepId: options.stepId,
       level: 'info',
-      message: 'SIRO WEB: inicio de sesion y navegacion a Reportes > Transacciones en Linea',
+      message: 'SIRO WEB: inicio de sesion y acceso al reporte de transacciones',
       payload: {
         baseUrl: credentials.url,
         environment: options.environment,
@@ -636,7 +636,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       page,
       runId: options.runId,
       stepId: options.stepId,
-      name: '00-login'
+      name: '01-inicio-sesion-siro-web'
     });
 
     const userSelectors = ['#txtUsuario', 'input[name="txtUsuario"]', 'input[id*="Usuario"]', 'input[name*="Usuario"]'];
@@ -654,7 +654,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
         runId: options.runId,
         stepId: options.stepId,
         level: 'error',
-        message: 'SIRO WEB: no se detecto pantalla de login ni de reporte',
+        message: 'SIRO WEB: no se encontro pantalla de ingreso ni de reporte',
         payload: {
           currentUrl,
           pageTitle,
@@ -685,14 +685,14 @@ export async function downloadSiroWebTransaccionesLineaReport(
         page,
         runId: options.runId,
         stepId: options.stepId,
-        name: '01-post-login'
+        name: '02-acceso-siro-web-confirmado'
       });
     } else {
       await appendRunEvent({
         runId: options.runId,
         stepId: options.stepId,
         level: 'warn',
-        message: 'SIRO WEB: no se detecto formulario de login; se continua directo al reporte',
+        message: 'SIRO WEB: no se encontro login, se continua directo al reporte',
         payload: {
           currentUrl: String(page.url?.() ?? '')
         }
@@ -713,7 +713,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
         runId: options.runId,
         stepId: options.stepId,
         level: 'error',
-        message: 'SIRO WEB: no se detecto selector de reporte (#cboTipoListado)',
+        message: 'SIRO WEB: no se encontro el selector de reporte',
         payload: {
           currentUrl,
           pageTitle,
@@ -729,7 +729,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       page,
       runId: options.runId,
       stepId: options.stepId,
-      name: '02-reporte-transacciones-linea-selected'
+      name: '03-reporte-transacciones-seleccionado'
     });
 
     await clickFirstAnywhere(page, ['#btnAceptar']);
@@ -738,7 +738,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       page,
       runId: options.runId,
       stepId: options.stepId,
-      name: '03-reporte-generado'
+      name: '04-reporte-generado'
     });
 
     const foundInPage = expectedIdReferenciaOperacion
@@ -764,7 +764,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       runId: options.runId,
       stepId: options.stepId,
       level: 'info',
-      message: 'SIRO WEB: PDF de Transacciones en Linea descargado',
+      message: 'SIRO WEB: PDF de transacciones descargado',
       payload: pdfFile
     });
 
@@ -774,7 +774,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       page,
       runId: options.runId,
       stepId: options.stepId,
-      name: '04-reporte-excel-generado'
+      name: '05-exportacion-excel-solicitada'
     });
 
     const xlsFile = await captureReportExportFile({
@@ -793,7 +793,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
         runId: options.runId,
         stepId: options.stepId,
         level: 'warn',
-        message: 'SIRO WEB: no se pudo descargar XLS de Transacciones en Linea',
+        message: 'SIRO WEB: no se pudo descargar el Excel de transacciones',
         payload: {
           finalUrl: String(page.url?.() ?? '')
         }
@@ -803,7 +803,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
         runId: options.runId,
         stepId: options.stepId,
         level: 'info',
-        message: 'SIRO WEB: XLS de Transacciones en Linea descargado',
+        message: 'SIRO WEB: Excel de transacciones descargado',
         payload: xlsFile
       });
     }
@@ -829,8 +829,8 @@ export async function downloadSiroWebTransaccionesLineaReport(
         stepId: options.stepId,
         level: expectedPresent ? 'info' : 'warn',
         message: expectedPresent
-          ? 'SIRO WEB: idReferenciaOperacion encontrado en reporte'
-          : 'SIRO WEB: idReferenciaOperacion NO encontrado en reporte',
+          ? 'SIRO WEB: referencia de operacion encontrada en el reporte'
+          : 'SIRO WEB: referencia de operacion no encontrada en el reporte',
         payload: {
           expectedIdReferenciaOperacion,
           foundInPage,

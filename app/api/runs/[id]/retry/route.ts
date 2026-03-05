@@ -16,7 +16,7 @@ export async function POST(
     await appendRunEvent({
       runId: id,
       level: 'warn',
-      message: 'Run reencolada manualmente'
+      message: 'Ejecucion puesta nuevamente en cola'
     });
 
     return NextResponse.json({ ok: true });

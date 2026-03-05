@@ -38,7 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link href="/profile" className="muted">Perfil</Link>
             <ThemeToggle />
             <form action={signOut} style={{ margin: 0 }}>
-              <button className="btn btn-secondary" type="submit" style={{ padding: '6px 14px', fontSize: '13px' }}>
+              <button className="btn btn-secondary" type="submit" style={{ padding: '6px 14px', fontSize: '13px', color: 'red' }}>
                 Cerrar sesión
               </button>
             </form>

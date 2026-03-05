@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { RunStatusPill } from '@/components/runs/run-status-pill';
 import { formatDateTimeAr } from '@/lib/datetime';
+import {
+  getArtifactDisplayName,
+  getDefinitionDisplayName,
+  getEventDisplayMessage,
+  getStepDisplayName
+} from '@/lib/runs/display';
 
 interface RunLivePanelProps {
   runId: string;
@@ -138,11 +144,13 @@ export function RunLivePanel({
 
       <div className="flex justify-between items-center" style={{ marginBottom: 20 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--primary)' }}>Ejecución: {run.test_definition_key || '-'}</h1>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--primary)' }}>
+            Ejecución: {getDefinitionDisplayName(String(run.test_definition_key ?? ''))}
+          </h1>
           <p className="muted" style={{ margin: '4px 0 0 0' }}>{run.id}</p>
         </div>
         <div className="flex gap-3">
-          <span className="badge" style={{ background: 'var(--warn-bg)', color: 'var(--warn-text)', padding: '6px 16px', fontSize: '14px' }}>
+          <span className="badge badge-env">
             {String(run.environment || '-')}
           </span>
           <RunStatusPill status={String(run.status ?? 'unknown')} />
@@ -167,16 +175,17 @@ export function RunLivePanel({
                   if (!dataUrl) return null;
                   const mimeType = String(artifact.metadata_json?.mime_type ?? '');
                   const fileName = String(artifact.metadata_json?.file_name ?? artifact.metadata_json?.name ?? 'artifact');
+                  const fileLabel = getArtifactDisplayName(fileName);
                   const isImage = mimeType.startsWith('image/') || dataUrl.startsWith('data:image/');
 
                   if (isImage) {
                     return (
-                      <div key={artifact.id} className="artifact-card animate-enter" onClick={() => setSelectedImage({ src: dataUrl, alt: fileName })}>
+                      <div key={artifact.id} className="artifact-card animate-enter" onClick={() => setSelectedImage({ src: dataUrl, alt: fileLabel })}>
                         <div className="artifact-img-wrap">
-                          <img src={dataUrl} alt={fileName} />
+                          <img src={dataUrl} alt={fileLabel} />
                         </div>
                         <div className="artifact-info">
-                          <div style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{fileName}</div>
+                          <div style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{fileLabel}</div>
                           <div className="muted" style={{ marginTop: 2 }}>{formatDateTimeAr(artifact.created_at).split(',')[1]}</div>
                         </div>
                       </div>
@@ -186,7 +195,7 @@ export function RunLivePanel({
                   return (
                     <div key={artifact.id} className="artifact-card animate-enter" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 100 }}>
                       <a href={dataUrl} download={fileName} className="btn btn-secondary">
-                        Descargar {fileName}
+                        Descargar {fileLabel}
                       </a>
                     </div>
                   );
@@ -198,7 +207,7 @@ export function RunLivePanel({
           {/* Steps Detail Cards */}
           <section className="card">
             <div className="card-header">
-              <div>⚙️ Desarrollo y Pasos Ejecutados</div>
+              <div>Proceso y pasos ejecutados</div>
             </div>
             <div className="flex-col gap-3">
               {sortedSteps.map((step) => (
@@ -207,15 +216,17 @@ export function RunLivePanel({
                     <div className="flex justify-between items-center w-full" style={{ flex: 1, marginRight: 8 }}>
                       <div>
                         <span className="muted" style={{ marginRight: 8 }}>#{step.sequence}</span>
-                        <span style={{ fontWeight: 600 }}>{String(step.step_code)}</span>
+                        <span style={{ fontWeight: 600 }}>{getStepDisplayName(step.step_name, step.step_code)}</span>
                       </div>
                       <RunStatusPill status={String(step.status)} />
                     </div>
                   </summary>
 
                   {step.error_message && (
-                    <div className="badge badge-err" style={{ display: 'block', margin: '12px 0' }}>
-                      {String(step.error_message)}
+                    <div style={{ margin: '12px 0' }}>
+                      <div className="badge badge-err" style={{ minWidth: 'auto', padding: '6px 16px', height: 'auto', whiteSpace: 'normal', lineHeight: '1.4', textAlign: 'left', width: '100%', justifyContent: 'flex-start' }}>
+                        {String(step.error_message)}
+                      </div>
                     </div>
                   )}
 
@@ -292,7 +303,9 @@ export function RunLivePanel({
               ) : (
                 sortedEvents.map((evt) => (
                   <div key={evt.id} className="animate-enter" style={{ borderLeft: `2px solid ${evt.level === 'error' ? 'var(--err)' : evt.level === 'warn' ? 'var(--warn)' : 'var(--primary)'}`, paddingLeft: 12, marginLeft: 2 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{String(evt.message)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                      {getEventDisplayMessage(String(evt.message))}
+                    </div>
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{formatDateTimeAr(evt.created_at)}</div>
                     {evt.payload_json && Object.keys(evt.payload_json).length > 0 && (
                       <details style={{ margin: '8px 0 0 0', padding: '6px 10px', fontSize: 12, borderRadius: 6 }}>

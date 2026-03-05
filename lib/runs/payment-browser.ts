@@ -584,7 +584,7 @@ export async function simulatePagoInBrowser(
       runId: options.runId,
       stepId: options.stepId,
       level: 'info',
-      message: `Navegacion web iniciada para canal ${options.channel.toUpperCase()}`,
+      message: `Inicio de simulacion web de pago (${options.channel.toUpperCase()})`,
       payload: {
         url: options.paymentUrl
       }
@@ -597,7 +597,7 @@ export async function simulatePagoInBrowser(
       runId: options.runId,
       stepId: options.stepId,
       channel: options.channel,
-      name: '00-landing'
+      name: '01-pantalla-inicial-pago'
     });
     await appendRunEvent({
       runId: options.runId,
@@ -620,7 +620,7 @@ export async function simulatePagoInBrowser(
         runId: options.runId,
         stepId: options.stepId,
         channel: options.channel,
-        name: '00-after-mail-comprobante'
+        name: '02-mail-comprobante-cargado'
       });
     }
 
@@ -654,7 +654,7 @@ export async function simulatePagoInBrowser(
       runId: options.runId,
       stepId: options.stepId,
       channel: options.channel,
-      name: '01-after-confirm'
+      name: '03-medio-pago-confirmado'
     });
     await appendRunEvent({
       runId: options.runId,
@@ -676,7 +676,7 @@ export async function simulatePagoInBrowser(
             runId: options.runId,
             stepId: options.stepId,
             channel: options.channel,
-            name: '02-before-pagar-card-form'
+            name: '04-formulario-tarjeta-completo'
           });
         }
       });
@@ -686,7 +686,7 @@ export async function simulatePagoInBrowser(
         runId: options.runId,
         stepId: options.stepId,
         channel: options.channel,
-        name: '02-after-submit-card'
+        name: '05-pago-tarjeta-enviado'
       });
       await appendRunEvent({
         runId: options.runId,
@@ -702,7 +702,7 @@ export async function simulatePagoInBrowser(
         runId: options.runId,
         stepId: options.stepId,
         channel: options.channel,
-        name: '02-after-generate-debin'
+        name: '04-solicitud-debin-generada'
       });
       await appendRunEvent({
         runId: options.runId,
@@ -717,7 +717,7 @@ export async function simulatePagoInBrowser(
         runId: options.runId,
         stepId: options.stepId,
         channel: options.channel,
-        name: '02-qr-screen'
+        name: '04-qr-listo-para-pagar'
       });
       await appendRunEvent({
         runId: options.runId,
@@ -732,7 +732,7 @@ export async function simulatePagoInBrowser(
         runId: options.runId,
         stepId: options.stepId,
         channel: options.channel,
-        name: '02-channel-screen'
+        name: '04-pantalla-medio-pago'
       });
     }
 
@@ -751,7 +751,7 @@ export async function simulatePagoInBrowser(
       runId: options.runId,
       stepId: options.stepId,
       level: 'info',
-      message: `Navegacion web finalizada para canal ${options.channel.toUpperCase()}`,
+      message: `Simulacion web de pago finalizada (${options.channel.toUpperCase()})`,
       payload: {
         finalUrl,
         callbackQuery,
@@ -774,14 +774,14 @@ export async function simulatePagoInBrowser(
       runId: options.runId,
       stepId: options.stepId,
       channel: options.channel,
-      name: '99-error'
+      name: '99-captura-error'
     }).catch(() => undefined);
 
     await appendRunEvent({
       runId: options.runId,
       stepId: options.stepId,
       level: 'error',
-      message: `Error en navegacion de canal ${options.channel.toUpperCase()}`,
+      message: `Error durante la simulacion web de pago (${options.channel.toUpperCase()})`,
       payload: {
         error: error instanceof Error ? error.message : String(error)
       }

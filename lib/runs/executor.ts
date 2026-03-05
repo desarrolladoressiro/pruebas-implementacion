@@ -298,7 +298,7 @@ async function executeSiroPagosPostWebhookQueuedFollowup(run: RunRow) {
   await appendRunEvent({
     runId: run.id,
     level: 'info',
-    message: 'Procesando seguimiento post-webhook desde worker',
+    message: 'Iniciando verificacion posterior al pago',
     payload: {
       environment,
       hash: hash ?? null,
@@ -322,7 +322,7 @@ async function executeSiroPagosPostWebhookQueuedFollowup(run: RunRow) {
     await appendRunEvent({
       runId: run.id,
       level: 'error',
-      message: 'Error en seguimiento post-webhook procesado por worker',
+      message: 'Fallo la verificacion posterior al pago',
       payload: {
         error: error instanceof Error ? error.message : String(error),
         hash: hash ?? null,
@@ -385,7 +385,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'create_intencion',
-    stepName: 'Crear intencion en /api/Pago',
+    stepName: 'Crear intencion de pago',
     sequence: 1,
     requestJson: payload
   });
@@ -430,7 +430,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
     const browserStep = await createRunStep({
       runId: run.id,
       stepCode: 'playwright_pago',
-      stepName: `Navegar Boton de Pagos (${channel.toUpperCase()})`,
+      stepName: `Completar pago en sitio web (${channel.toUpperCase()})`,
       sequence: 2,
       requestJson: {
         canal: channel,
@@ -507,7 +507,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
         runId: run.id,
         stepId: browserStep.id,
         level: 'info',
-        message: 'Se omiten consultas de estado post_browser. Se esperara URL_OK para seguimiento.',
+        message: 'Se omiten verificaciones inmediatas y se espera confirmacion del pago.',
         payload: {
           canal: channel,
           requiresRedirectSuccess,
@@ -520,7 +520,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
       runId: run.id,
       stepId: step.id,
       level: 'warn',
-      message: 'Navegacion Playwright omitida por configuracion',
+      message: 'Se omitio la simulacion web por configuracion',
       payload: {
         canal: channel
       }
@@ -532,7 +532,7 @@ async function executeSiroPagosCrearIntencion(run: RunRow) {
     await createRunStep({
       runId: run.id,
       stepCode: 'espera_url_ok',
-      stepName: 'Esperar notificacion URL_OK',
+      stepName: 'Esperar confirmacion del pago',
       sequence: 90,
       status: 'awaiting_external_event',
       requestJson: {
@@ -570,7 +570,7 @@ async function executeSiroPagosConsulta(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'consulta_intencion',
-    stepName: 'Consultar /api/Pago/Consulta',
+    stepName: 'Consultar intenciones de pago',
     sequence: 1,
     requestJson: payload
   });
@@ -619,7 +619,7 @@ async function executeSiroPagosStringQR(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'string_qr',
-    stepName: 'Crear /api/Pago/StringQR',
+    stepName: 'Generar QR dinamico',
     sequence: 1,
     requestJson: payload
   });
@@ -665,7 +665,7 @@ async function executeSiroPagosStringQROffline(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'string_qr_offline',
-    stepName: 'Crear /api/Pago/StringQROffline',
+    stepName: 'Generar QR offline',
     sequence: 1,
     requestJson: payload
   });
@@ -703,7 +703,7 @@ async function executeSiroPagosQREstatico(run: RunRow) {
   const step1 = await createRunStep({
     runId: run.id,
     stepCode: 'qr_estatico_string',
-    stepName: 'Crear /api/Pago/StringQREstatico',
+    stepName: 'Generar datos de QR estatico',
     sequence: 1,
     requestJson: stringPayload
   });
@@ -736,7 +736,7 @@ async function executeSiroPagosQREstatico(run: RunRow) {
   const step2 = await createRunStep({
     runId: run.id,
     stepCode: 'qr_estatico_peticion',
-    stepName: 'Crear /api/Pago/QREstatico',
+    stepName: 'Crear cobro con QR estatico',
     sequence: 2,
     requestJson: qrPayload
   });
@@ -788,7 +788,7 @@ async function executeSiroPagosComprobante(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'pago_comprobante',
-    stepName: 'Crear /api/Pago/Comprobante',
+    stepName: 'Crear pago por comprobante',
     sequence: 1,
     requestJson: payload
   });
@@ -828,7 +828,7 @@ async function executeSiroApiPagosUpload(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'siro_pagos_upload',
-    stepName: 'Subir /siro/Pagos',
+    stepName: 'Cargar base de pagos',
     sequence: 1,
     requestJson: payload
   });
@@ -863,7 +863,7 @@ async function executeSiroApiPagosUpload(run: RunRow) {
   const stepConsulta = await createRunStep({
     runId: run.id,
     stepCode: 'siro_estado_transaccion_post_upload',
-    stepName: 'Consultar /siro/Pagos/{nro_transaccion}',
+    stepName: 'Consultar estado de la carga',
     sequence: 2,
     requestJson: {
       ...consultaPayload,
@@ -935,7 +935,7 @@ async function executeSiroApiPagosEstadoTransaccion(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'siro_estado_transaccion',
-    stepName: 'Consultar /siro/Pagos/{nro_transaccion}',
+    stepName: 'Consultar estado de transaccion',
     sequence: 1,
     requestJson: stepRequest
   });
@@ -959,7 +959,7 @@ async function executeSiroApiPagosConsulta(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'siro_pagos_consulta',
-    stepName: 'Consultar /siro/Pago/Consulta',
+    stepName: 'Consultar bases de pagos',
     sequence: 1,
     requestJson: payload
   });
@@ -985,7 +985,7 @@ async function executeSiroApiListadosProceso(run: RunRow) {
   const step = await createRunStep({
     runId: run.id,
     stepCode: 'siro_listados_proceso',
-    stepName: 'Consultar /siro/Listados/Proceso',
+    stepName: 'Consultar listados de proceso',
     sequence: 1,
     requestJson: payload
   });
@@ -1006,7 +1006,7 @@ async function executeSiroApiAdminConvenios(run: RunRow) {
   const step1 = await createRunStep({
     runId: run.id,
     stepCode: 'siro_administradores',
-    stepName: 'Consultar /siro/Administradores',
+    stepName: 'Consultar administradores',
     sequence: 1,
     requestJson: adminRequest
   });
@@ -1021,7 +1021,7 @@ async function executeSiroApiAdminConvenios(run: RunRow) {
   const step2 = await createRunStep({
     runId: run.id,
     stepCode: 'siro_convenios',
-    stepName: 'Consultar /siro/Convenios',
+    stepName: 'Consultar convenios',
     sequence: 2,
     requestJson: conveniosRequest
   });
@@ -1063,7 +1063,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step1 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_alta',
-    stepName: 'POST /siro/Adhesiones',
+    stepName: 'Dar de alta adhesion',
     sequence: 1,
     requestJson: altaPayload
   });
@@ -1078,7 +1078,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step2 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_por_cpe',
-    stepName: 'GET /siro/Adhesiones/{nro_cpe}',
+    stepName: 'Consultar adhesion por cliente',
     sequence: 2,
     requestJson: cpeRequest
   });
@@ -1095,7 +1095,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step3 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_vigentes',
-    stepName: 'GET /siro/Adhesiones/Vigentes',
+    stepName: 'Consultar adhesiones vigentes',
     sequence: 3,
     requestJson: vigentesPayload
   });
@@ -1112,7 +1112,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step4 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_modificar',
-    stepName: 'POST /siro/Adhesiones/Modificar',
+    stepName: 'Modificar adhesion',
     sequence: 4,
     requestJson: modificarPayload
   });
@@ -1123,7 +1123,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step5 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_desactivar',
-    stepName: 'POST /siro/Adhesiones/Desactivar/{nro_cpe}',
+    stepName: 'Desactivar adhesion',
     sequence: 5,
     requestJson: cpeRequest
   });
@@ -1142,7 +1142,7 @@ async function executeSiroApiAdhesionesCiclo(run: RunRow) {
   const step6 = await createRunStep({
     runId: run.id,
     stepCode: 'adhesion_bajas',
-    stepName: 'GET /siro/Adhesiones/Bajas',
+    stepName: 'Consultar adhesiones dadas de baja',
     sequence: 6,
     requestJson: bajasPayload
   });
@@ -1166,7 +1166,7 @@ export async function executeRunByDefinition(run: RunRow) {
   await appendRunEvent({
     runId: run.id,
     level: 'info',
-    message: `Inicio de ejecucion ${run.test_definition_key}`,
+    message: 'Inicio de ejecucion de prueba',
     payload: {
       environment: run.environment
     }
@@ -1179,7 +1179,7 @@ export async function executeRunByDefinition(run: RunRow) {
         await appendRunEvent({
           runId: run.id,
           level: 'info',
-          message: 'Seguimiento post-webhook finalizado'
+          message: 'Verificacion posterior al pago finalizada'
         });
         return;
       }

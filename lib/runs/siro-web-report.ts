@@ -191,6 +191,46 @@ async function clickFirstAnywhere(page: any, selectors: string[]) {
   return false;
 }
 
+async function triggerToolbarExportAnywhere(page: any) {
+  const scopes = listScopes(page);
+  for (const scope of scopes) {
+    const clicked = await clickFirst(scope, ['#ReportToolbar1_Menu_DXI7_I', '#ReportToolbar1_Menu_DXI7_Img']);
+    if (clicked) {
+      return true;
+    }
+  }
+
+  for (const scope of scopes) {
+    const triggered = await scope.evaluate(() => {
+      const g = window as any;
+      try {
+        g.__cfRLUnblockHandlers = true;
+      } catch {}
+
+      const target = document.getElementById('ReportToolbar1_Menu_DXI7_I') as HTMLElement | null;
+      if (target) {
+        target.click();
+        return true;
+      }
+
+      if (typeof g.aspxMIClick === 'function') {
+        try {
+          g.aspxMIClick(new MouseEvent('click', { bubbles: true, cancelable: true }), 'ReportToolbar1_Menu', '7');
+          return true;
+        } catch {}
+      }
+
+      return false;
+    }).catch(() => false);
+
+    if (triggered) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function compactHtmlSnippet(html: string, maxLength = 3000) {
   return html.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -217,6 +257,46 @@ function maskEndpoint(endpoint: string) {
     return `${parsed.protocol}//${parsed.host}`;
   } catch {
     return endpoint.slice(0, 32);
+  }
+}
+
+function parseFilenameFromHeader(value: string | null | undefined) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return undefined;
+  const utf8 = raw.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (utf8) return decodeURIComponent(utf8).replace(/["']/g, '');
+  const basic = raw.match(/filename="?([^\";]+)"?/i)?.[1];
+  if (basic) return basic.trim();
+  return undefined;
+}
+
+function isDownloadLikeResponse(response: any) {
+  const headers = response.headers?.() ?? {};
+  const contentType = String(headers['content-type'] ?? '').toLowerCase();
+  const disposition = String(headers['content-disposition'] ?? '').toLowerCase();
+  return (
+    disposition.includes('attachment')
+    || contentType.includes('application/pdf')
+    || contentType.includes('application/vnd.ms-excel')
+    || contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    || contentType.includes('text/csv')
+    || contentType.includes('application/octet-stream')
+  );
+}
+
+async function waitForDownloadResponse(
+  page: any,
+  trigger: () => Promise<void>,
+  timeoutMs: number
+) {
+  try {
+    const [response] = await Promise.all([
+      page.waitForResponse((candidate: any) => isDownloadLikeResponse(candidate), { timeout: timeoutMs }),
+      trigger()
+    ]);
+    return response;
+  } catch {
+    return null;
   }
 }
 
@@ -426,68 +506,129 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '03-reporte-generado'
     });
 
+    const toolbarClick = async () => {
+      await triggerToolbarExportAnywhere(page);
+    };
+
+    const excelClick = async () => {
+      await clickFirstAnywhere(page, ['#BtnExcel']);
+    };
+
     const download =
       (await waitForDownload(
         page,
-        async () => {
-          await clickFirstAnywhere(page, ['#ReportToolbar1_Menu_DXI7_I', '#ReportToolbar1_Menu_DXI7_Img']);
-        },
+        toolbarClick,
         45_000
       )) ??
       (await waitForDownload(
         page,
-        async () => {
-          await clickFirstAnywhere(page, ['#BtnExcel']);
-        },
+        excelClick,
         20_000
       ));
 
-    if (!download) {
-      throw new Error('No se pudo descargar el reporte de Transacciones en Linea desde SIRO WEB.');
+    if (download) {
+      const suggested = download.suggestedFilename() || `transacciones_linea_${Date.now()}.bin`;
+      const tempPath = join(tmpdir(), `${Date.now()}_${suggested}`);
+      await download.saveAs(tempPath);
+      const fileBuffer = await readFile(tempPath);
+      const mimeType = mimeTypeByFilename(suggested);
+      const base64 = fileBuffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      await addRunArtifact({
+        runId: options.runId,
+        stepId: options.stepId,
+        artifactType: 'file',
+        storagePath: `inline/${options.runId}/${Date.now()}_${suggested}`,
+        metadata: {
+          source: 'siro_web_reportes',
+          report_name: 'transacciones_en_linea',
+          file_name: suggested,
+          mime_type: mimeType,
+          size_bytes: fileBuffer.length,
+          data_url: dataUrl
+        }
+      });
+
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'info',
+        message: 'SIRO WEB: reporte de Transacciones en Linea descargado y adjuntado',
+        payload: {
+          fileName: suggested,
+          sizeBytes: fileBuffer.length,
+          mimeType
+        }
+      });
+
+      return {
+        ok: true,
+        fileName: suggested,
+        fileSizeBytes: fileBuffer.length,
+        mimeType,
+        finalUrl: String(page.url?.() ?? '')
+      };
     }
 
-    const suggested = download.suggestedFilename() || `transacciones_linea_${Date.now()}.bin`;
-    const tempPath = join(tmpdir(), `${Date.now()}_${suggested}`);
-    await download.saveAs(tempPath);
-    const fileBuffer = await readFile(tempPath);
-    const mimeType = mimeTypeByFilename(suggested);
-    const base64 = fileBuffer.toString('base64');
-    const dataUrl = `data:${mimeType};base64,${base64}`;
+    const responseFromToolbar = await waitForDownloadResponse(page, toolbarClick, 45_000);
+    const responseFromExcel = responseFromToolbar ?? (await waitForDownloadResponse(page, excelClick, 20_000));
 
-    await addRunArtifact({
-      runId: options.runId,
-      stepId: options.stepId,
-      artifactType: 'file',
-      storagePath: `inline/${options.runId}/${Date.now()}_${suggested}`,
-      metadata: {
-        source: 'siro_web_reportes',
-        report_name: 'transacciones_en_linea',
-        file_name: suggested,
-        mime_type: mimeType,
-        size_bytes: fileBuffer.length,
-        data_url: dataUrl
-      }
-    });
+    if (responseFromExcel) {
+      const headers = responseFromExcel.headers?.() ?? {};
+      const disposition = String(headers['content-disposition'] ?? '');
+      const responseUrl = String(responseFromExcel.url?.() ?? '');
+      const suggested =
+        parseFilenameFromHeader(disposition)
+        ?? responseUrl.split('/').pop()
+        ?? `transacciones_linea_${Date.now()}.bin`;
+      const fileBuffer = Buffer.from(await responseFromExcel.body());
+      const mimeType = mimeTypeByFilename(suggested);
+      const base64 = fileBuffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    await appendRunEvent({
-      runId: options.runId,
-      stepId: options.stepId,
-      level: 'info',
-      message: 'SIRO WEB: reporte de Transacciones en Linea descargado y adjuntado',
-      payload: {
+      await addRunArtifact({
+        runId: options.runId,
+        stepId: options.stepId,
+        artifactType: 'file',
+        storagePath: `inline/${options.runId}/${Date.now()}_${suggested}`,
+        metadata: {
+          source: 'siro_web_reportes',
+          report_name: 'transacciones_en_linea',
+          file_name: suggested,
+          mime_type: mimeType,
+          size_bytes: fileBuffer.length,
+          data_url: dataUrl
+        }
+      });
+
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'info',
+        message: 'SIRO WEB: reporte capturado por respuesta HTTP y adjuntado',
+        payload: {
+          fileName: suggested,
+          sizeBytes: fileBuffer.length,
+          mimeType,
+          responseUrl
+        }
+      });
+
+      return {
+        ok: true,
         fileName: suggested,
-        sizeBytes: fileBuffer.length,
-        mimeType
-      }
-    });
+        fileSizeBytes: fileBuffer.length,
+        mimeType,
+        finalUrl: String(page.url?.() ?? '')
+      };
+    }
 
-    return {
-      ok: true,
-      fileName: suggested,
-      fileSizeBytes: fileBuffer.length,
-      mimeType,
-      finalUrl: String(page.url?.() ?? '')
-    };
+    const finalHtml = compactHtmlSnippet(String(await page.content().catch(() => '') ?? ''));
+    throw new Error(
+      `No se pudo descargar el reporte de Transacciones en Linea desde SIRO WEB. `
+      + `URL final: ${String(page.url?.() ?? '')}. HTML: ${finalHtml}`
+    );
   } finally {
     if (closeContext) {
       await context.close().catch(() => undefined);

@@ -289,17 +289,38 @@ function parseFilenameFromHeader(value: string | null | undefined) {
   return undefined;
 }
 
+function isFontFilename(filename: string | undefined) {
+  const lower = String(filename ?? '').toLowerCase();
+  return lower.endsWith('.ttf') || lower.endsWith('.otf') || lower.endsWith('.woff') || lower.endsWith('.woff2');
+}
+
 function isDownloadLikeResponse(response: any) {
   const headers = response.headers?.() ?? {};
   const contentType = String(headers['content-type'] ?? '').toLowerCase();
-  const disposition = String(headers['content-disposition'] ?? '').toLowerCase();
+  const disposition = String(headers['content-disposition'] ?? '');
+  const dispositionLower = disposition.toLowerCase();
+  const url = String(response.url?.() ?? '').toLowerCase();
+  const request = response.request?.();
+  const method = String(request?.method?.() ?? '').toUpperCase();
+  const filename = parseFilenameFromHeader(disposition);
+  const pdfByFilename = String(filename ?? '').toLowerCase().endsWith('.pdf');
+
+  if (isFontFilename(filename)) {
+    return false;
+  }
+
+  if (contentType.includes('font/') || contentType.includes('application/font') || contentType.includes('application/x-font')) {
+    return false;
+  }
+
+  // Prioridad: captura de export PDF del reporte (endpoint dxrep_fake por POST).
+  if (url.includes('dxrep_fake') && method === 'POST') {
+    return true;
+  }
+
   return (
-    disposition.includes('attachment')
+    (dispositionLower.includes('attachment') && pdfByFilename)
     || contentType.includes('application/pdf')
-    || contentType.includes('application/vnd.ms-excel')
-    || contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    || contentType.includes('text/csv')
-    || contentType.includes('application/octet-stream')
   );
 }
 
@@ -553,7 +574,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '02-reporte-transacciones-linea-selected'
     });
 
-    await clickFirstAnywhere(page, ['#BtnExcel', '#btnAceptar']);
+    await clickFirstAnywhere(page, ['#btnAceptar']);
     await page.waitForTimeout(2_500);
     await saveScreenshotArtifact({
       page,
@@ -566,20 +587,11 @@ export async function downloadSiroWebTransaccionesLineaReport(
       await triggerToolbarExportAnywhere(page);
     };
 
-    const excelClick = async () => {
-      await clickFirstAnywhere(page, ['#BtnExcel']);
-    };
-
     const download =
       (await waitForDownload(
         page,
         toolbarClick,
         45_000
-      )) ??
-      (await waitForDownload(
-        page,
-        excelClick,
-        20_000
       ));
 
     if (download) {
@@ -627,8 +639,7 @@ export async function downloadSiroWebTransaccionesLineaReport(
       };
     }
 
-    const responseFromToolbar = await waitForDownloadResponse(page, toolbarClick, 45_000);
-    const responseFromExcel = responseFromToolbar ?? (await waitForDownloadResponse(page, excelClick, 20_000));
+    const responseFromExcel = await waitForDownloadResponse(page, toolbarClick, 45_000);
 
     if (responseFromExcel) {
       const headers = responseFromExcel.headers?.() ?? {};

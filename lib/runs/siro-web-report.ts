@@ -17,6 +17,8 @@ interface DownloadedReportResult {
   fileSizeBytes?: number;
   mimeType?: string;
   finalUrl?: string;
+  pdfFileName?: string;
+  xlsFileName?: string;
 }
 
 function trimToOptional(value: unknown) {
@@ -250,6 +252,44 @@ async function triggerToolbarExportAnywhere(page: any) {
   return false;
 }
 
+async function triggerToolbarExportAnywhereById(page: any, menuId: string) {
+  const cellId = `${menuId}_DXI7_I`;
+  const imgId = `${menuId}_DXI7_Img`;
+  const scopes = listScopes(page);
+  for (const scope of scopes) {
+    const clicked = await clickFirst(scope, [`#${cellId}`, `#${imgId}`]);
+    if (clicked) {
+      return true;
+    }
+  }
+
+  for (const scope of scopes) {
+    const triggered = await scope.evaluate(({ cell, menu }: { cell: string; menu: string }) => {
+      const g = window as any;
+      try {
+        g.__cfRLUnblockHandlers = true;
+      } catch {}
+      const target = document.getElementById(cell) as HTMLElement | null;
+      if (target) {
+        target.click();
+        return true;
+      }
+      if (typeof g.aspxMIClick === 'function') {
+        try {
+          g.aspxMIClick(new MouseEvent('click', { bubbles: true, cancelable: true }), menu, '7');
+          return true;
+        } catch {}
+      }
+      return false;
+    }, { cell: cellId, menu: menuId }).catch(() => false);
+    if (triggered) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function compactHtmlSnippet(html: string, maxLength = 3000) {
   return html.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -294,7 +334,7 @@ function isFontFilename(filename: string | undefined) {
   return lower.endsWith('.ttf') || lower.endsWith('.otf') || lower.endsWith('.woff') || lower.endsWith('.woff2');
 }
 
-function isDownloadLikeResponse(response: any) {
+function isDownloadLikeResponse(response: any, expected: 'pdf' | 'xls') {
   const headers = response.headers?.() ?? {};
   const contentType = String(headers['content-type'] ?? '').toLowerCase();
   const disposition = String(headers['content-disposition'] ?? '');
@@ -304,6 +344,8 @@ function isDownloadLikeResponse(response: any) {
   const method = String(request?.method?.() ?? '').toUpperCase();
   const filename = parseFilenameFromHeader(disposition);
   const pdfByFilename = String(filename ?? '').toLowerCase().endsWith('.pdf');
+  const xlsByFilename = String(filename ?? '').toLowerCase().endsWith('.xls')
+    || String(filename ?? '').toLowerCase().endsWith('.xlsx');
 
   if (isFontFilename(filename)) {
     return false;
@@ -314,24 +356,29 @@ function isDownloadLikeResponse(response: any) {
   }
 
   // Prioridad: captura de export PDF del reporte (endpoint dxrep_fake por POST).
-  if (url.includes('dxrep_fake') && method === 'POST') {
-    return true;
-  }
+  const fromReportPost = url.includes('dxrep_fake') && method === 'POST';
+  const isPdf = contentType.includes('application/pdf') || pdfByFilename;
+  const isXls = contentType.includes('application/vnd.ms-excel')
+    || contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    || contentType.includes('application/octet-stream') && xlsByFilename
+    || xlsByFilename;
+  const isAttachment = dispositionLower.includes('attachment');
 
-  return (
-    (dispositionLower.includes('attachment') && pdfByFilename)
-    || contentType.includes('application/pdf')
-  );
+  if (expected === 'pdf') {
+    return (fromReportPost && isPdf) || (isAttachment && isPdf);
+  }
+  return (fromReportPost && isXls) || (isAttachment && isXls);
 }
 
 async function waitForDownloadResponse(
   page: any,
   trigger: () => Promise<void>,
-  timeoutMs: number
+  timeoutMs: number,
+  expected: 'pdf' | 'xls'
 ) {
   try {
     const [response] = await Promise.all([
-      page.waitForResponse((candidate: any) => isDownloadLikeResponse(candidate), { timeout: timeoutMs }),
+      page.waitForResponse((candidate: any) => isDownloadLikeResponse(candidate, expected), { timeout: timeoutMs }),
       trigger()
     ]);
     return response;
@@ -375,6 +422,88 @@ async function readDownloadedResponseBuffer(page: any, response: any) {
     }
     return Buffer.from(await apiResponse.body());
   }
+}
+
+async function persistFileArtifact({
+  runId,
+  stepId,
+  fileName,
+  fileBuffer
+}: {
+  runId: string;
+  stepId: string;
+  fileName: string;
+  fileBuffer: Buffer;
+}) {
+  const mimeType = mimeTypeByFilename(fileName);
+  const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+  await addRunArtifact({
+    runId,
+    stepId,
+    artifactType: 'file',
+    storagePath: `inline/${runId}/${Date.now()}_${fileName}`,
+    metadata: {
+      source: 'siro_web_reportes',
+      report_name: 'transacciones_en_linea',
+      file_name: fileName,
+      mime_type: mimeType,
+      size_bytes: fileBuffer.length,
+      data_url: dataUrl
+    }
+  });
+  return { fileName, fileSizeBytes: fileBuffer.length, mimeType };
+}
+
+async function captureReportExportFile({
+  page,
+  runId,
+  stepId,
+  expected,
+  trigger,
+  timeoutMs
+}: {
+  page: any;
+  runId: string;
+  stepId: string;
+  expected: 'pdf' | 'xls';
+  trigger: () => Promise<void>;
+  timeoutMs: number;
+}) {
+  const download = await waitForDownload(page, trigger, timeoutMs);
+  if (download) {
+    const suggested = download.suggestedFilename() || `transacciones_linea_${Date.now()}.${expected}`;
+    if (!isFontFilename(suggested)) {
+      const tempPath = join(tmpdir(), `${Date.now()}_${suggested}`);
+      await download.saveAs(tempPath);
+      const fileBuffer = await readFile(tempPath);
+      const lower = suggested.toLowerCase();
+      if (expected === 'pdf' && lower.endsWith('.pdf')) {
+        return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+      }
+      if (expected === 'xls' && (lower.endsWith('.xls') || lower.endsWith('.xlsx'))) {
+        return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
+      }
+    }
+  }
+
+  const response = await waitForDownloadResponse(page, trigger, timeoutMs, expected);
+  if (!response) {
+    return null;
+  }
+
+  const headers = response.headers?.() ?? {};
+  const disposition = String(headers['content-disposition'] ?? '');
+  const responseUrl = String(response.url?.() ?? '');
+  const suggested =
+    parseFilenameFromHeader(disposition)
+    ?? responseUrl.split('/').pop()
+    ?? `transacciones_linea_${Date.now()}.${expected}`;
+  const fileBuffer = await readDownloadedResponseBuffer(page, response);
+  if (!fileBuffer || fileBuffer.length === 0 || isFontFilename(suggested)) {
+    return null;
+  }
+
+  return persistFileArtifact({ runId, stepId, fileName: suggested, fileBuffer });
 }
 
 async function connectBrowser(chromium: any, endpoint: string) {
@@ -583,127 +712,76 @@ export async function downloadSiroWebTransaccionesLineaReport(
       name: '03-reporte-generado'
     });
 
-    const toolbarClick = async () => {
-      await triggerToolbarExportAnywhere(page);
+    const pdfFile = await captureReportExportFile({
+      page,
+      runId: options.runId,
+      stepId: options.stepId,
+      expected: 'pdf',
+      trigger: async () => {
+        await triggerToolbarExportAnywhereById(page, 'ReportToolbar1_Menu');
+      },
+      timeoutMs: 45_000
+    });
+    if (!pdfFile) {
+      throw new Error('No se pudo descargar el PDF de Transacciones en Linea desde SIRO WEB.');
+    }
+
+    await appendRunEvent({
+      runId: options.runId,
+      stepId: options.stepId,
+      level: 'info',
+      message: 'SIRO WEB: PDF de Transacciones en Linea descargado',
+      payload: pdfFile
+    });
+
+    await clickFirstAnywhere(page, ['#BtnExcel']);
+    await page.waitForTimeout(2_000);
+    await saveScreenshotArtifact({
+      page,
+      runId: options.runId,
+      stepId: options.stepId,
+      name: '04-reporte-excel-generado'
+    });
+
+    const xlsFile = await captureReportExportFile({
+      page,
+      runId: options.runId,
+      stepId: options.stepId,
+      expected: 'xls',
+      trigger: async () => {
+        await triggerToolbarExportAnywhereById(page, 'ReportToolbar2_Menu');
+      },
+      timeoutMs: 45_000
+    });
+    if (!xlsFile) {
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'warn',
+        message: 'SIRO WEB: no se pudo descargar XLS de Transacciones en Linea',
+        payload: {
+          finalUrl: String(page.url?.() ?? '')
+        }
+      });
+    } else {
+      await appendRunEvent({
+        runId: options.runId,
+        stepId: options.stepId,
+        level: 'info',
+        message: 'SIRO WEB: XLS de Transacciones en Linea descargado',
+        payload: xlsFile
+      });
+    }
+
+    return {
+      ok: true,
+      fileName: pdfFile.fileName,
+      fileSizeBytes: pdfFile.fileSizeBytes,
+      mimeType: pdfFile.mimeType,
+      finalUrl: String(page.url?.() ?? ''),
+      pdfFileName: pdfFile.fileName,
+      xlsFileName: xlsFile?.fileName
     };
-
-    const download =
-      (await waitForDownload(
-        page,
-        toolbarClick,
-        45_000
-      ));
-
-    if (download) {
-      const suggested = download.suggestedFilename() || `transacciones_linea_${Date.now()}.bin`;
-      const tempPath = join(tmpdir(), `${Date.now()}_${suggested}`);
-      await download.saveAs(tempPath);
-      const fileBuffer = await readFile(tempPath);
-      const mimeType = mimeTypeByFilename(suggested);
-      const base64 = fileBuffer.toString('base64');
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-
-      await addRunArtifact({
-        runId: options.runId,
-        stepId: options.stepId,
-        artifactType: 'file',
-        storagePath: `inline/${options.runId}/${Date.now()}_${suggested}`,
-        metadata: {
-          source: 'siro_web_reportes',
-          report_name: 'transacciones_en_linea',
-          file_name: suggested,
-          mime_type: mimeType,
-          size_bytes: fileBuffer.length,
-          data_url: dataUrl
-        }
-      });
-
-      await appendRunEvent({
-        runId: options.runId,
-        stepId: options.stepId,
-        level: 'info',
-        message: 'SIRO WEB: reporte de Transacciones en Linea descargado y adjuntado',
-        payload: {
-          fileName: suggested,
-          sizeBytes: fileBuffer.length,
-          mimeType
-        }
-      });
-
-      return {
-        ok: true,
-        fileName: suggested,
-        fileSizeBytes: fileBuffer.length,
-        mimeType,
-        finalUrl: String(page.url?.() ?? '')
-      };
-    }
-
-    const responseFromExcel = await waitForDownloadResponse(page, toolbarClick, 45_000);
-
-    if (responseFromExcel) {
-      const headers = responseFromExcel.headers?.() ?? {};
-      const disposition = String(headers['content-disposition'] ?? '');
-      const responseUrl = String(responseFromExcel.url?.() ?? '');
-      const suggested =
-        parseFilenameFromHeader(disposition)
-        ?? responseUrl.split('/').pop()
-        ?? `transacciones_linea_${Date.now()}.bin`;
-      const fileBuffer = await readDownloadedResponseBuffer(page, responseFromExcel);
-      if (!fileBuffer || fileBuffer.length === 0) {
-        await appendRunEvent({
-          runId: options.runId,
-          stepId: options.stepId,
-          level: 'warn',
-          message: 'SIRO WEB: se detecto respuesta de descarga pero no se pudo leer el body',
-          payload: {
-            responseUrl,
-            contentType: String(headers['content-type'] ?? ''),
-            contentDisposition: disposition
-          }
-        });
-      } else {
-      const mimeType = mimeTypeByFilename(suggested);
-      const base64 = fileBuffer.toString('base64');
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-
-      await addRunArtifact({
-        runId: options.runId,
-        stepId: options.stepId,
-        artifactType: 'file',
-        storagePath: `inline/${options.runId}/${Date.now()}_${suggested}`,
-        metadata: {
-          source: 'siro_web_reportes',
-          report_name: 'transacciones_en_linea',
-          file_name: suggested,
-          mime_type: mimeType,
-          size_bytes: fileBuffer.length,
-          data_url: dataUrl
-        }
-      });
-
-      await appendRunEvent({
-        runId: options.runId,
-        stepId: options.stepId,
-        level: 'info',
-        message: 'SIRO WEB: reporte capturado por respuesta HTTP y adjuntado',
-        payload: {
-          fileName: suggested,
-          sizeBytes: fileBuffer.length,
-          mimeType,
-          responseUrl
-        }
-      });
-
-      return {
-        ok: true,
-        fileName: suggested,
-        fileSizeBytes: fileBuffer.length,
-        mimeType,
-        finalUrl: String(page.url?.() ?? '')
-      };
-      }
-    }
 
     const finalHtml = compactHtmlSnippet(String(await page.content().catch(() => '') ?? ''));
     throw new Error(

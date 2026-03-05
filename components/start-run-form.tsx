@@ -84,7 +84,7 @@ export function StartRunForm({ definitions }: StartRunFormProps) {
       </label>
 
       {selectedDefinition?.description && (
-        <div className="muted" style={{ fontSize: 13, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div className="muted" style={{ fontSize: 13, background: 'var(--bg-soft)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
           💡 {selectedDefinition.description}
         </div>
       )}

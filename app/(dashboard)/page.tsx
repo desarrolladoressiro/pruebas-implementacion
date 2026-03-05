@@ -42,7 +42,7 @@ export default async function DashboardPage({
         <div className="scrollable-panel-header">
           <div className="flex-col">
             <span style={{ fontSize: '1.25rem' }}>Nueva Ejecución</span>
-            <span className="muted" style={{ fontSize: '0.85rem', fontWeight: 400 }}>Módulos habilitados: API SIRO Pagos + API SIRO.</span>
+            {/* <span className="muted" style={{ fontSize: '0.85rem', fontWeight: 400 }}>Módulos habilitados: API SIRO Pagos + API SIRO.</span> */}
           </div>
         </div>
         <div className="scrollable-panel-body">
@@ -78,7 +78,7 @@ export default async function DashboardPage({
                     <div className="muted" style={{ fontSize: '12px' }}>{formatDateTimeAr(run.created_at).split(',')[1]}</div>
                   </td>
                   <td>
-                    <span className="badge" style={{ background: '#f1f5f9', color: '#334155' }}>
+                    <span className="badge" style={{ background: 'var(--bg-soft)', color: 'var(--text)' }}>
                       {String(run.test_definition_key)}
                     </span>
                   </td>

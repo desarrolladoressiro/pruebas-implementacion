@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getUserRole } from '@/lib/runs/repository';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient();
@@ -29,12 +30,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="nav-inner">
           <div className="row">
             <strong style={{ fontSize: '1.25rem', color: 'var(--primary)', letterSpacing: '-0.5px' }}>Automatizacion de Pruebas de Implementacion SIRO</strong>
-            <span className="badge" style={{ background: '#e2e8f0', color: '#475569' }}>{role}</span>
+            <span className="badge" style={{ background: 'var(--bg-soft)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{role}</span>
           </div>
 
           <div className="row" style={{ gap: '24px' }}>
             <Link href="/" className="muted">Dashboard</Link>
             <Link href="/profile" className="muted">Perfil</Link>
+            <ThemeToggle />
             <form action={signOut} style={{ margin: 0 }}>
               <button className="btn btn-secondary" type="submit" style={{ padding: '6px 14px', fontSize: '13px' }}>
                 Cerrar sesión

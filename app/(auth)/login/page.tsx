@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getEnv } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default async function LoginPage({
   searchParams
@@ -35,9 +36,14 @@ export default async function LoginPage({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, var(--bg) 0%, #e2e8f0 100%)',
-      padding: '24px'
+      background: 'linear-gradient(135deg, var(--bg) 0%, var(--bg-soft) 100%)',
+      padding: '24px',
+      position: 'relative'
     }}>
+      <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+        <ThemeToggle />
+      </div>
+
       <div className="card animate-enter" style={{
         maxWidth: '480px',
         width: '100%',
@@ -76,7 +82,7 @@ export default async function LoginPage({
           </svg>
         </div>
 
-        <h1 style={{ margin: '0 0 12px 0', fontSize: '24px', fontWeight: 700, color: '#1e293b' }}>
+        <h1 style={{ margin: '0 0 12px 0', fontSize: '24px', fontWeight: 700, color: 'var(--text)' }}>
           Automatizacion de Pruebas de Implementacion SIRO
         </h1>
         <p className="muted" style={{ margin: '0 0 32px 0', fontSize: '15px', lineHeight: 1.6 }}>

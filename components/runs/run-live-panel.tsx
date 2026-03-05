@@ -142,7 +142,7 @@ export function RunLivePanel({
           <p className="muted" style={{ margin: '4px 0 0 0' }}>{run.id}</p>
         </div>
         <div className="flex gap-3">
-          <span className="badge" style={{ background: 'rgba(243, 172, 51, 0.1)', color: '#b47100', padding: '6px 16px', fontSize: '14px' }}>
+          <span className="badge" style={{ background: 'var(--warn-bg)', color: 'var(--warn-text)', padding: '6px 16px', fontSize: '14px' }}>
             {String(run.environment || '-')}
           </span>
           <RunStatusPill status={String(run.status ?? 'unknown')} />
@@ -260,7 +260,7 @@ export function RunLivePanel({
 
           {/* System Info Collapsible */}
           <details style={{ background: 'transparent', border: 'none', padding: 0, boxShadow: 'none' }}>
-            <summary style={{ padding: '12px 16px', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 12 }}>
+            <summary style={{ padding: '12px 16px', background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: 12 }}>
               <span style={{ fontSize: '14px', color: 'var(--muted)' }}>Mostrar información bruta y JSON general (Debug)</span>
             </summary>
             <div className="card mt-4" style={{ marginTop: 16 }}>
@@ -282,7 +282,7 @@ export function RunLivePanel({
 
         {/* Right column: Event Logs Sidebar */}
         <section className="card" style={{ position: 'sticky', top: 0, maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', padding: 0 }}>
-          <div className="card-header" style={{ padding: '20px', margin: 0, background: '#f8fafc', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+          <div className="card-header" style={{ padding: '20px', margin: 0, background: 'var(--bg-soft)', borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
             <div>📋 Historial de Eventos</div>
           </div>
           <div style={{ overflowY: 'auto', padding: 20 }}>
@@ -292,7 +292,7 @@ export function RunLivePanel({
               ) : (
                 sortedEvents.map((evt) => (
                   <div key={evt.id} className="animate-enter" style={{ borderLeft: `2px solid ${evt.level === 'error' ? 'var(--err)' : evt.level === 'warn' ? 'var(--warn)' : 'var(--primary)'}`, paddingLeft: 12, marginLeft: 2 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{String(evt.message)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{String(evt.message)}</div>
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{formatDateTimeAr(evt.created_at)}</div>
                     {evt.payload_json && Object.keys(evt.payload_json).length > 0 && (
                       <details style={{ margin: '8px 0 0 0', padding: '6px 10px', fontSize: 12, borderRadius: 6 }}>

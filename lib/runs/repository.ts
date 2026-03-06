@@ -241,6 +241,18 @@ export async function getProfileByUserId(userId: string) {
 }
 
 export async function markRunFailed(runId: string, reason: string) {
+  const supabase = createSupabaseServiceRoleClient();
+
+  await supabase
+    .from('run_steps')
+    .update({
+      status: 'failed',
+      error_message: reason,
+      ended_at: new Date().toISOString()
+    })
+    .eq('run_id', runId)
+    .eq('status', 'running');
+
   await appendRunEvent({
     runId,
     level: 'error',

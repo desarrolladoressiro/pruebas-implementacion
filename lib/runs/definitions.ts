@@ -10,13 +10,13 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     enabled: true,
     default_input: {
       Concepto: 'PRUEBA AUTOMATIZADA API PAGO',
-      Importe: 100,
+      Importe: 51,
       canal: 'td',
       run_browser: true,
       Detalle: [
         {
           Descripcion: 'SERVICIO',
-          Importe: 100
+          Importe: 51
         }
       ]
     }
@@ -39,7 +39,7 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     enabled: true,
     default_input: {
       Concepto: 'PRUEBA STRING QR',
-      Importe: 100
+      Importe: 5
     }
   },
   {
@@ -50,9 +50,9 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     executor_code: 'siro_pagos_string_qr_offline',
     enabled: true,
     default_input: {
-      importe_1: 100,
-      importe_2: 120,
-      importe_3: 140
+      importe_1: 5,
+      importe_2: 10,
+      importe_3: 15
     }
   },
   {
@@ -63,7 +63,7 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     executor_code: 'siro_pagos_qr_estatico',
     enabled: true,
     default_input: {
-      Importe: 100
+      Importe: 5
     }
   },
   {
@@ -86,11 +86,11 @@ export const TEST_DEFINITIONS: TestDefinition[] = [
     enabled: true,
     default_input: {
       formato: 'basico',
-      importe: 100,
+      importe: 5,
       confirmar_automaticamente: true,
       obtener_informacion_base: true,
       consultas_estado_max_intentos: 3,
-      consultas_estado_intervalo_ms: 4000
+      consultas_estado_intervalo_ms: 10000
     }
   },
   {
